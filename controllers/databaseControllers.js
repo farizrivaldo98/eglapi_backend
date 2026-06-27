@@ -337,7 +337,7 @@ module.exports = {
 
       const parsedResult = result.map((entry) => ({
         ...entry,
-        y: parseFloat(entry.y) / 10,
+        y: parseFloat(entry.y) ,
       }));
 
       return response.status(200).send(parsedResult);
@@ -349,9 +349,9 @@ module.exports = {
     const queryData = `SELECT
     data_index AS id,
     DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`)+ INTERVAL 1 DAY, '%Y-%m-%d %H:%i:%s') AS date,
-    ROUND(data_format_0/10, 2) AS temp,
-    ROUND(data_format_1/10, 2) AS RH,
-    ROUND(data_format_2/10, 2) AS DP
+    ROUND(data_format_0, 2) AS temp,
+    ROUND(data_format_1, 2) AS RH,
+    ROUND(data_format_2, 2) AS DP
     FROM \`${area}\`
     WHERE
       DATE(FROM_UNIXTIME(\`time@timestamp\`)+ INTERVAL 1 DAY) BETWEEN '${start}' AND '${finish}'
