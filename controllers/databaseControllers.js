@@ -319,12 +319,12 @@ module.exports = {
     // Adjusted: Removed '+ INTERVAL 1 DAY' and added '- INTERVAL 7 HOUR'
     const queryData = `
       SELECT
-        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`) - INTERVAL 7 HOUR, '%Y-%m-%d %H:%i:%s') AS label,
+        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`), '%Y-%m-%d %H:%i:%s') AS label,
         data_index AS x,
         data_format_${format} AS y
       FROM \`${area}\`
       WHERE
-        DATE(FROM_UNIXTIME(\`time@timestamp\`) - INTERVAL 7 HOUR) BETWEEN '${start}' AND '${finish}'
+        DATE(FROM_UNIXTIME(\`time@timestamp\`)) BETWEEN '${start}' AND '${finish}'
       ORDER BY
         \`time@timestamp\`;
     `;
