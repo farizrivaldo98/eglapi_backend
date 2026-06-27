@@ -354,7 +354,7 @@ module.exports = {
     ROUND(data_format_2, 2) AS DP
     FROM \`${area}\`
     WHERE
-      DATE(FROM_UNIXTIME(\`time@timestamp\`)+ INTERVAL 1 DAY) BETWEEN '${start}' AND '${finish}'
+      DATE(FROM_UNIXTIME(\`time@timestamp\`)) BETWEEN '${start}' AND '${finish}'
     ORDER BY
       \`time@timestamp\``;
 
