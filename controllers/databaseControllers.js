@@ -324,7 +324,7 @@ module.exports = {
         data_format_${format} AS y
       FROM \`${area}\`
       WHERE
-        DATE(FROM_UNIXTIME(\`time@timestamp\`)) BETWEEN '${start}' AND '${finish}'
+        FROM_UNIXTIME(\`time@timestamp\`) BETWEEN '${start}' AND '${finish}'
       ORDER BY
         \`time@timestamp\`;
     `;
@@ -356,7 +356,7 @@ module.exports = {
     ROUND(data_format_2, 2) AS DP
     FROM \`${area}\`
     WHERE
-      DATE(FROM_UNIXTIME(\`time@timestamp\`)) BETWEEN '${start}' AND '${finish}'
+      FROM_UNIXTIME(\`time@timestamp\`) BETWEEN '${start}' AND '${finish}'
     ORDER BY
       \`time@timestamp\``;
 
