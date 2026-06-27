@@ -348,7 +348,7 @@ module.exports = {
     const { area, start, finish } = request.query;
     const queryData = `SELECT
     data_index AS id,
-    DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`)+ INTERVAL 1 DAY, '%Y-%m-%d %H:%i:%s') AS date,
+    DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`), '%Y-%m-%d %H:%i:%s') AS date,
     ROUND(data_format_0, 2) AS temp,
     ROUND(data_format_1, 2) AS RH,
     ROUND(data_format_2, 2) AS DP
