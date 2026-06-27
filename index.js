@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const port = 8002;
 const app = express();
-const { databaseRouter } = require("./routers");
+const { databaseRouter ,auditRouter} = require("./routers");
 const { body, validationResult } = require("express-validator");
 const { log } = require("console");
 const { db, query } = require("./database");
@@ -42,6 +42,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 });
 
 app.use("/part", databaseRouter);
+app.use('/audit', auditRouter);   
 
 app.listen(port, () => {
   console.log("SERVER RUNNING IN PORT" + port);

@@ -48,27 +48,21 @@ module.exports = {
 
   fetchDataHardness: async (request, response) => {
     const { nobatch } = request.body;
-    let fetchQuerry = `SELECT  id as x , hardness AS y FROM instrument WHERE nobatch= ${db2.escape(
-      nobatch
-    )} `;
+    let fetchQuerry = `SELECT  id as x , hardness AS y FROM instrument WHERE nobatch= ${db2.escape(nobatch)} `;
     db2.query(fetchQuerry, (err, result) => {
       return response.status(200).send(result);
     });
   },
   fetchDataTickness: async (request, response) => {
     const { nobatch } = request.body;
-    let fetchQuerry = `SELECT  id as x , thickness AS y FROM instrument WHERE nobatch= ${db2.escape(
-      nobatch
-    )} `;
+    let fetchQuerry = `SELECT  id as x , thickness AS y FROM instrument WHERE nobatch= ${db2.escape(nobatch)} `;
     db2.query(fetchQuerry, (err, result) => {
       return response.status(200).send(result);
     });
   },
   fetchDataDiameter: async (request, response) => {
     const { nobatch } = request.body;
-    let fetchQuerry = `SELECT  id as x , diameter AS y FROM instrument WHERE nobatch= ${db2.escape(
-      nobatch
-    )} `;
+    let fetchQuerry = `SELECT  id as x , diameter AS y FROM instrument WHERE nobatch= ${db2.escape(nobatch)} `;
     db2.query(fetchQuerry, (err, result) => {
       return response.status(200).send(result);
     });
@@ -83,7 +77,6 @@ module.exports = {
 
   fetchDataLine1: async (request, response) => {
     const date = request.query.date;
-
     let fetchquerry = `SELECT Mesin , SUM(total)AS Line1 FROM part WHERE MONTH(tanggal) = ${date} AND Line='Line1' GROUP BY Mesin`;
     db.query(fetchquerry, (err, result) => {
       return response.status(200).send(result);
@@ -91,7 +84,6 @@ module.exports = {
   },
   fetchDataLine2: async (request, response) => {
     const date = request.query.date;
-
     let fetchquerry = `SELECT Mesin , SUM(total)AS Line2 FROM part WHERE MONTH(tanggal) = ${date} AND Line='Line2' GROUP BY Mesin`;
     db.query(fetchquerry, (err, result) => {
       return response.status(200).send(result);
@@ -113,7 +105,6 @@ module.exports = {
   },
   fetchDataPareto: async (request, response) => {
     const date = request.query.date;
-
     let fatchquerry = `SELECT Line, SUM(total) AS y FROM parammachine_saka.part WHERE MONTH(tanggal) = ${date} GROUP BY Line ORDER BY Line ASC;`;
     db.query(fatchquerry, (err, result) => {
       return response.status(200).send(result);
@@ -122,9 +113,7 @@ module.exports = {
 
   getData: async (request, response) => {
     const date = request.query.date;
-
     var fatchquerry = `SELECT * FROM parammachine_saka.part WHERE MONTH(tanggal) = ${date};`;
-
     db.query(fatchquerry, (err, result) => {
       return response.status(200).send(result);
     });
@@ -132,35 +121,14 @@ module.exports = {
 
   fetchEdit: async (request, response) => {
     var fatchquerry = `SELECT * FROM parammachine_saka.part`;
-
     db.query(fatchquerry, (err, result) => {
       return response.status(200).send(result);
     });
   },
 
   addData: async (request, response) => {
-    const {
-      Mesin,
-      Line,
-      Pekerjaan,
-      Detail,
-      Tanggal,
-      Quantity,
-      Unit,
-      Pic,
-      Tawal,
-      Tahir,
-      Total,
-    } = request.body;
-    let postQuery = `INSERT INTO part VALUES (null, ${db.escape(
-      Mesin
-    )}, ${db.escape(Line)}, ${db.escape(Pekerjaan)}, ${db.escape(
-      Detail
-    )}, ${db.escape(Tanggal)}, ${db.escape(Quantity)}, ${db.escape(
-      Unit
-    )}, ${db.escape(Pic)}, ${db.escape(Tawal)}, ${db.escape(
-      Tahir
-    )}, ${db.escape(Total)})`;
+    const { Mesin, Line, Pekerjaan, Detail, Tanggal, Quantity, Unit, Pic, Tawal, Tahir, Total } = request.body;
+    let postQuery = `INSERT INTO part VALUES (null, ${db.escape(Mesin)}, ${db.escape(Line)}, ${db.escape(Pekerjaan)}, ${db.escape(Detail)}, ${db.escape(Tanggal)}, ${db.escape(Quantity)}, ${db.escape(Unit)}, ${db.escape(Pic)}, ${db.escape(Tawal)}, ${db.escape(Tahir)}, ${db.escape(Total)})`;
     db.query(postQuery, (err, result) => {
       if (err) {
         return response.status(400).send(err.message);
@@ -179,10 +147,7 @@ module.exports = {
     for (let prop in request.body) {
       dataUpdate.push(`${prop} = ${db.escape(request.body[prop])}`);
     }
-    let updateQuery = `UPDATE part set ${dataUpdate} where id = ${db.escape(
-      idParams
-    )}`;
-
+    let updateQuery = `UPDATE part set ${dataUpdate} where id = ${db.escape(idParams)}`;
     db.query(updateQuery, (err, result) => {
       if (err) response.status(500).send(err);
       response.status(200).send(result);
@@ -196,9 +161,7 @@ module.exports = {
       if (err) {
         return response.status(400).send(err.message);
       } else {
-        return response
-          .status(200)
-          .send({ isSucess: true, message: "Succes delete data" });
+        return response.status(200).send({ isSucess: true, message: "Succes delete data" });
       }
     });
   },
@@ -215,26 +178,15 @@ module.exports = {
     const salt = await bcrypt.genSalt(10);
     const hashPassword = await bcrypt.hash(password, salt);
 
-    let addUserQuery = `INSERT INTO users VALUES (null, ${db.escape(
-      username
-    )}, ${db.escape(email)}, ${db.escape(hashPassword)}, ${db.escape(
-      name
-    )}, false)`;
+    let addUserQuery = `INSERT INTO users VALUES (null, ${db.escape(username)}, ${db.escape(email)}, ${db.escape(hashPassword)}, ${db.escape(name)}, false)`;
     let addUserResult = await query(addUserQuery);
 
-    // let mail = {
-    //   from: `Admin <khaerul.fariz98@gmail.com>`,
-    //   to: `${email}`,
-    //   subject: `Acount Verification`,
-    //   html: `<a href="http://10.163.0.66:3000/" > Verification Click here</a>`,
-    // };
-
-    // let response = await nodemailer.sendMail(mail);
-
-    return res
-      .status(200)
-      .send({ data: addUserResult, message: "Register success" });
+    return res.status(200).send({ data: addUserResult, message: "Register success" });
   },
+
+  // ============================================================
+  // login — DIMODIFIKASI: tambah pencatatan audit LOGIN
+  // ============================================================
   login: async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -260,6 +212,22 @@ module.exports = {
       };
       const token = jwt.sign(payload, "khaerul", { expiresIn: "1h" });
 
+      // ── AUDIT TRAIL: catat LOGIN ─────────────────────────────
+      try {
+        const ip =
+          (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+          req.socket.remoteAddress ||
+          "unknown";
+        await query(
+          `INSERT INTO audit_trail (user_id, user_name, action, detail, ip_address)
+           VALUES (${db.escape(isUserExist[0].id_users)}, ${db.escape(isUserExist[0].name)}, 'LOGIN', '{}', ${db.escape(ip)})`
+        );
+      } catch (auditErr) {
+        // Jangan blokir login walau audit gagal
+        console.error("Audit login error:", auditErr);
+      }
+      // ─────────────────────────────────────────────────────────
+
       delete isUserExist[0].password;
       return res.status(200).send({
         token,
@@ -270,6 +238,7 @@ module.exports = {
       res.status(error.status || 500).send(error);
     }
   },
+
   fetchAlluser: async (req, res) => {
     try {
       const users = await query(`SELECT * FROM users`);
@@ -296,18 +265,9 @@ module.exports = {
     }
   },
 
-
-
-
-
   //===============EMS=================================================================
-
-//  cMT-C21B_StaggingF1_data
-
-
   getTableEMS: async (request, response) => {
     const queryData = `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE (TABLE_NAME LIKE '%cMT-C21B_%' OR TABLE_NAME LIKE '_data') AND TABLE_NAME NOT LIKE '%_data_format' AND TABLE_NAME NOT LIKE '%_data_section';`;
-
     db.query(queryData, (err, result) => {
       return response.status(200).send(result);
     });
@@ -315,8 +275,6 @@ module.exports = {
 
   getTempChart: async (request, response) => {
     const { area, start, finish, format } = request.query;
-    
-    // Adjusted: Removed '+ INTERVAL 1 DAY' and added '- INTERVAL 7 HOUR'
     const queryData = `
       SELECT
         DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`), '%Y-%m-%d %H:%i:%s') AS label,
@@ -329,19 +287,16 @@ module.exports = {
         \`time@timestamp\`;
     `;
     console.log(queryData);
-    
 
     db.query(queryData, (err, result) => {
       if (err) {
         console.error("Error executing query:", err);
         return response.status(500).send("Internal Server Error");
       }
-
       const parsedResult = result.map((entry) => ({
         ...entry,
-        y: parseFloat(entry.y) ,
+        y: parseFloat(entry.y),
       }));
-
       return response.status(200).send(parsedResult);
     });
   },
@@ -360,11 +315,10 @@ module.exports = {
     ORDER BY
       \`time@timestamp\``;
 
-          console.log(queryData);
-
+    console.log(queryData);
     db.query(queryData, (err, result) => {
       return response.status(200).send(result);
     });
   },
-  //=====================================================================================
+  //===================================================================================
 };
