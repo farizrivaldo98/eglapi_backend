@@ -237,34 +237,34 @@ module.exports = {
   },
   login: async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { username, password } = req.body;
 
-      const isEmailExist = await query(
-        `SELECT * FROM users WHERE email = ${db.escape(email)}`
+      const isUserExist = await query(
+        `SELECT * FROM users WHERE username = ${db.escape(username)}`
       );
 
-      if (isEmailExist.length == 0) {
-        return res.status(400).send({ message: "email & password infailid1" });
+      if (isUserExist.length == 0) {
+        return res.status(400).send({ message: "Initial & password invalid" });
       }
 
-      const isValid = await bcrypt.compare(password, isEmailExist[0].password);
+      const isValid = await bcrypt.compare(password, isUserExist[0].password);
 
       if (!isValid) {
-        return res.status(400).send({ message: "email & password infailid2" });
+        return res.status(400).send({ message: "Initial & password invalid" });
       }
 
       let payload = {
-        name: isEmailExist[0].name,
-        id: isEmailExist[0].id_users,
-        isAdmin: isEmailExist[0].isAdmin,
+        name: isUserExist[0].name,
+        id: isUserExist[0].id_users,
+        isAdmin: isUserExist[0].isAdmin,
       };
       const token = jwt.sign(payload, "khaerul", { expiresIn: "1h" });
 
-      delete isEmailExist[0].password;
+      delete isUserExist[0].password;
       return res.status(200).send({
         token,
-        message: "email & password sucess",
-        data: isEmailExist[0],
+        message: "Login success",
+        data: isUserExist[0],
       });
     } catch (error) {
       res.status(error.status || 500).send(error);
