@@ -328,6 +328,8 @@ module.exports = {
       ORDER BY
         \`time@timestamp\`;
     `;
+    console.log(queryData);
+    
 
     db.query(queryData, (err, result) => {
       if (err) {
@@ -357,6 +359,8 @@ module.exports = {
       DATE(FROM_UNIXTIME(\`time@timestamp\`)) BETWEEN '${start}' AND '${finish}'
     ORDER BY
       \`time@timestamp\``;
+
+          console.log(queryData);
 
     db.query(queryData, (err, result) => {
       return response.status(200).send(result);
