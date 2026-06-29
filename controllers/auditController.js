@@ -59,7 +59,8 @@ module.exports = {
         conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
       const rows = await query(
-        `SELECT id, user_id, user_name, action, detail, ip_address, server_time
+        `SELECT id, user_id, user_name, action, detail, ip_address,
+                DATE_FORMAT(CONVERT_TZ(server_time, '+00:00', '+07:00'), '%Y-%m-%d %H:%i:%s') AS server_time
          FROM audit_trail
          ${whereClause}
          ORDER BY server_time DESC
