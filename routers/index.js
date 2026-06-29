@@ -1,6 +1,5 @@
-// routers/index.js
-const databaseRouter = require("./databasaeRouter");  // ← sesuai nama file asli (ada typo 'ae')
+const databaseRouter = require("./databasaeRouter");
 const auditRouter    = require("./auditRouter");
-const adminRouter    = require("./adminRouter");       // ← yang baru
+const adminRouter    = require("./Adminrouter");   // ← sesuai nama file di disk
 
 module.exports = { databaseRouter, auditRouter, adminRouter };
