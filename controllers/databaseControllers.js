@@ -205,11 +205,14 @@ module.exports = {
         return res.status(400).send({ message: "Initial & password invalid" });
       }
 
-      let payload = {
-        name: isUserExist[0].name,
-        id: isUserExist[0].id_users,
-        isAdmin: isUserExist[0].isAdmin,
-      };
+    let payload = {
+  name:     isUserExist[0].name,
+  id:       isUserExist[0].id_users,
+  isAdmin:  isUserExist[0].isAdmin,
+  username: isUserExist[0].username,
+  email:    isUserExist[0].email,
+  level:    isUserExist[0].level,     // ← sesuaikan nama kolom di DB kamu
+};
       const token = jwt.sign(payload, "khaerul", { expiresIn: "1h" });
 
       // ── AUDIT TRAIL: catat LOGIN ─────────────────────────────
@@ -254,11 +257,14 @@ module.exports = {
         `SELECT * FROM users WHERE id_users = ${db.escape(req.user.id)}`
       );
       return res.status(200).send({
-        data: {
-          name: users[0].name,
-          id: users[0].id_users,
-          isAdmin: users[0].isAdmin,
-        },
+          data: {
+    name:     users[0].name,
+    id:       users[0].id_users,
+    isAdmin:  users[0].isAdmin,
+    username: users[0].username,
+    email:    users[0].email,
+    level:    users[0].level,         // ← sesuaikan nama kolom di DB kamu
+  },
       });
     } catch (error) {
       res.status(error.statusCode || 500).send(error);
