@@ -4,29 +4,29 @@ const veryfyToken = (req, res, next) => {
   let token = req.headers.authorization;
 
   if (!token) {
-    return res.status(401).send("access dnied");
+    return res.status(401).send("access denied");
   }
+
   token = token.split(" ")[1];
-  if (token == "null" || !token) {
-    return res.status(401).send("access dnied");
+
+  if (!token || token === "null") {
+    return res.status(401).send("access denied");
   }
 
-  let verifiedUser = jwt.verify(token, "khaerul");
-  console.log(verifiedUser);
-  if (!verifiedUser) {
-    return res.status(401).send("access dnied");
+  try {
+    const verifiedUser = jwt.verify(token, "khaerul");
+    req.user = verifiedUser;
+    next();
+  } catch (err) {
+    return res.status(401).send("token expired");
   }
-
-  req.user = verifiedUser;
-  console.log(verifiedUser);
-  next();
 };
 
 const checkRole = async (req, res, next) => {
   if (req.user.isAdmin) {
     return next();
   }
-  return res.status(401).send("access dnied");
+  return res.status(401).send("access denied");
 };
 
 module.exports = { veryfyToken, checkRole };
