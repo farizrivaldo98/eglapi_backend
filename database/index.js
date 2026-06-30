@@ -1,34 +1,39 @@
 const mysql = require("mysql2");
 const util = require("util");
-const db = mysql.createConnection({
+
+// ── DB1: uty_db1 (10.163.0.66) ───────────────────────────────
+const db = mysql.createPool({
   host: "10.163.0.66",
   user: "ems_lapi",
   password: "111111",
   database: "uty_db1",
   port: 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-const db2 = mysql.createConnection({
+// ── DB2: ems_saka (10.126.15.138) ────────────────────────────
+const db2 = mysql.createPool({
   host: "10.126.15.138",
   user: "ems_saka",
   password: "s4k4f4rmA",
   database: "ems_saka",
   port: 3306,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-
-db.connect((err) => {
-  if (err) {
-    return console.log(`error : ${err.message}`);
-  }
-  console.log("connect to mysql");
+// Pool tidak butuh .connect() manual — auto manage sendiri
+db.query("SELECT 1", (err) => {
+  if (err) return console.error("DB1 error:", err.message);
+  console.log("DB1 (uty_db1) connected via pool");
 });
 
-db2.connect((err) => {
-  if (err) {
-    return console.log(`error : ${err.message}`);
-  }
-  console.log("connect to mysql2");
+db2.query("SELECT 1", (err) => {
+  if (err) return console.error("DB2 error:", err.message);
+  console.log("DB2 (ems_saka) connected via pool");
 });
 
 const query = util.promisify(db.query).bind(db);
