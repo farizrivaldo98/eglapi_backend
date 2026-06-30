@@ -34,4 +34,8 @@ routers.get("/getTabelEMS", databaseControllers.getTableEMS);
 routers.get("/getTempChart", databaseControllers.getTempChart);
 routers.get("/getAllDataEMS", databaseControllers.getAllDataEMS);
 
+// Tambahkan di bawah kumpulan router lainnya
+routers.get("/admin/page-access",veryfyToken,databaseControllers.getPageAccess);
+routers.put("/admin/page-access",veryfyToken,checkRole,databaseControllers.updatePageAccess);
+
 module.exports = routers;

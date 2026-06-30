@@ -502,4 +502,64 @@ module.exports = {
     }
   },
   //===================================================================================
+
+
+
+
+  // ============================================================
+  // PAGE MANAGEMENT ACCESS
+  // ============================================================
+  
+  getPageAccess: async (req, res) => {
+    try {
+      const getQueryData = "SELECT level, pages FROM page_access";
+      const result = await query(getQueryData);
+
+      const matrix = {};
+      
+      // Transformasi dari array object DB menjadi bentuk: { "1": [...], "2": [...] }
+      result.forEach((row) => {
+        try {
+          matrix[row.level] = JSON.parse(row.pages);
+        } catch(e) {
+          // Fallback jika string tidak bisa di-parse
+          matrix[row.level] = []; 
+        }
+      });
+      
+      return res.status(200).send(matrix);
+    } catch (err) {
+      return handleDbError(err, res, "getPageAccess");
+    }
+  },
+
+  updatePageAccess: async (req, res) => {
+    try {
+      const matrix = req.body; // Payload dari frontend: { "1": ["Maintenance"], "2": [...] }
+      
+      if (!matrix || typeof matrix !== "object") {
+        return res.status(400).send({ message: "Data matrix tidak valid" });
+      }
+
+      // Looping object matrix untuk melakukan UPSERT (Insert if not exist, Update if exist)
+      const promises = Object.keys(matrix).map((level) => {
+        const pagesStr = JSON.stringify(matrix[level]); // Ubah array jadi string
+        
+        const upsertQuery = `
+          INSERT INTO page_access (level, pages)
+          VALUES (${db.escape(level)}, ${db.escape(pagesStr)})
+          ON DUPLICATE KEY UPDATE pages = ${db.escape(pagesStr)}
+        `;
+        
+        return query(upsertQuery);
+      });
+
+      await Promise.all(promises); // Tunggu semua level selesai disimpan
+
+      return res.status(200).send({ message: "Akses halaman berhasil disimpan" });
+    } catch (err) {
+      return handleDbError(err, res, "updatePageAccess");
+    }
+  },
+  
 };
