@@ -1,13 +1,20 @@
 const { db, query } = require("../database");
 
-const ALLOWED_ACTIONS = ["LOGIN", "LOGOUT", "VIEW_UTILITY", "EXPORT_PDF"];
+// Tambahkan "ADMIN_UPDATE_PAGE_ACCESS" ke dalam array di bawah ini
+const ALLOWED_ACTIONS = [
+  "LOGIN", 
+  "LOGOUT", 
+  "VIEW_UTILITY", 
+  "EXPORT_PDF",
+  "ADMIN_UPDATE_PAGE_ACCESS" // <--- Fitur baru ditambahkan di sini
+];
 
 module.exports = {
   /**
    * POST /audit/log
    * Body : { action: string, detail: object }
    * Guard: veryfyToken
-   * Dipanggil dari frontend untuk catat LOGOUT, VIEW_UTILITY, EXPORT_PDF.
+   * Dipanggil dari frontend untuk catat LOGOUT, VIEW_UTILITY, EXPORT_PDF, dan update page access.
    * LOGIN dicatat langsung di databaseControllers.login().
    */
   logAction: async (req, res) => {
