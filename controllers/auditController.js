@@ -6,7 +6,8 @@ const ALLOWED_ACTIONS = [
   "LOGOUT", 
   "VIEW_UTILITY", 
   "EXPORT_PDF",
-  "ADMIN_UPDATE_PAGE_ACCESS" // <--- Fitur baru ditambahkan di sini
+  "ADMIN_UPDATE_PAGE_ACCESS", // <--- Fitur baru ditambahkan di sini
+  "SCADA_EDIT_LIMIT"
 ];
 
 module.exports = {
