@@ -525,7 +525,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
 
       const queryData = `SELECT
         data_index AS id,
-        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`), '%Y-%m-%d %H:%i:%s') AS date,
+        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600), '%Y-%m-%d %H:%i:%s') AS date,
         ROUND(data_format_0, 2) AS capacity,
         ROUND(data_format_1, 2) AS current,
         ROUND(data_format_2, 2) AS kwInput,
@@ -535,7 +535,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         ROUND(data_format_6, 2) AS kwTr
         FROM ${db.escapeId(area)}
         WHERE
-          FROM_UNIXTIME(\`time@timestamp\`) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+          FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
         ORDER BY
           \`time@timestamp\``;
 
