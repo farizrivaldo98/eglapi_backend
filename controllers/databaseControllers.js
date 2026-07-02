@@ -460,12 +460,12 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
 
       const queryData = `
         SELECT
-          DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`+ 7 * 3600 ), '%Y-%m-%d %H:%i:%s') AS label,
+          DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600 ), '%Y-%m-%d %H:%i:%s') AS label,
           data_index AS x,
           data_format_${format} AS y
         FROM ${db.escapeId(area)}
         WHERE
-          FROM_UNIXTIME(\`time@timestamp\` + 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+          FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
         ORDER BY
           \`time@timestamp\`;
       `;
