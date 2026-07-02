@@ -515,6 +515,41 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
 
 
 
+  //===============CHILLER================================================================
+  getAllDataChiller: async (request, response) => {
+    try {
+      const { area, start, finish } = request.query;
+      if (!area || !start || !finish) {
+        return response.status(400).send({ message: "Parameter area, start, finish wajib diisi" });
+      }
+
+      const queryData = `SELECT
+        data_index AS id,
+        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`), '%Y-%m-%d %H:%i:%s') AS date,
+        ROUND(data_format_0, 2) AS capacity,
+        ROUND(data_format_1, 2) AS current,
+        ROUND(data_format_2, 2) AS kwInput,
+        ROUND(data_format_3, 2) AS kwOutput,
+        ROUND(data_format_4, 2) AS cop,
+        ROUND(data_format_5, 2) AS deltaT,
+        ROUND(data_format_6, 2) AS kwTr
+        FROM ${db.escapeId(area)}
+        WHERE
+          FROM_UNIXTIME(\`time@timestamp\`) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+        ORDER BY
+          \`time@timestamp\``;
+
+      db.query(queryData, (err, result) => {
+        if (err) return handleDbError(err, response, "getAllDataChiller");
+        return response.status(200).send(result);
+      });
+    } catch (err) {
+      return handleDbError(err, response, "getAllDataChiller");
+    }
+  },
+  //===================================================================================
+
+
   // ============================================================
   // PAGE MANAGEMENT ACCESS
   // ============================================================
