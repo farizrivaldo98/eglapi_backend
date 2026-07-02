@@ -427,7 +427,16 @@ module.exports = {
   //===============EMS=================================================================
   getTableEMS: async (request, response) => {
     try {
-      const queryData = `SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE (TABLE_NAME LIKE '%cMT-C21B_%' OR TABLE_NAME LIKE '_data') AND TABLE_NAME NOT LIKE '%_data_format' AND TABLE_NAME NOT LIKE '%_data_section'`;
+      const queryData = `SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE
+(
+    TABLE_NAME LIKE '%cMT-C21B_%'
+    OR TABLE_NAME LIKE '%_data'
+)
+AND TABLE_NAME NOT LIKE '%_data_format'
+AND TABLE_NAME NOT LIKE '%_data_section'
+AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       db.query(queryData, (err, result) => {
         if (err) return handleDbError(err, response, "getTableEMS");
         return response.status(200).send(result);
