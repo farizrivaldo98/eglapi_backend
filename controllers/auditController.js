@@ -7,7 +7,8 @@ const ALLOWED_ACTIONS = [
   "VIEW_UTILITY", 
   "EXPORT_PDF",
   "ADMIN_UPDATE_PAGE_ACCESS", // <--- Fitur baru ditambahkan di sini
-  "SCADA_EDIT_LIMIT"
+  "SCADA_EDIT_LIMIT",
+  "VIEW_CHILLER"
 ];
 
 module.exports = {
