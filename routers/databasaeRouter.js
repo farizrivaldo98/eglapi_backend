@@ -31,6 +31,7 @@ routers.get("/variableoee", databaseControllers.fetchVariableOee);
 
 
 routers.get("/getTabelEMS", databaseControllers.getTableEMS);
+routers.get("/getAreaGroupedByAhu", databaseControllers.getAreaGroupedByAhu);
 routers.get("/getTempChart", databaseControllers.getTempChart);
 routers.get("/getAllDataEMS", databaseControllers.getAllDataEMS);
 routers.get("/getAllDataChiller", databaseControllers.getAllDataChiller);
