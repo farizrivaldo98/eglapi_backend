@@ -5,7 +5,7 @@ const db = mysql.createPool({
   host: "10.163.0.66",
   user: "ems_lapi",
   password: "111111",
-  database: "uty_db1_backup",
+  database: "uty_db1",
   port: 3306,
   waitForConnections: true,
   connectionLimit: 10,
