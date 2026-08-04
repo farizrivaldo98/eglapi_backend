@@ -64,24 +64,14 @@ function groupEnergyWaterByPeriod(deltaRows, period) {
   return Array.from(map.values()).map((r) => ({ ...r, value: Number(r.value.toFixed(3)) }));
 }
 
-// Gabung hasil grouping Trane1 & Trane2 jadi satu baris per label (full
-// outer join by label), sekalian hitung average-nya buat grafik tengah.
-function mergeEnergyWaterMeters(trane1Grouped, trane2Grouped) {
-  const map = new Map();
-  trane1Grouped.forEach((r) => map.set(r.label, { label: r.label, trane1: r.value, trane2: 0 }));
-  trane2Grouped.forEach((r) => {
-    if (map.has(r.label)) map.get(r.label).trane2 = r.value;
-    else map.set(r.label, { label: r.label, trane1: 0, trane2: r.value });
-  });
-  return Array.from(map.values())
+// Format hasil grouping jadi bentuk output generik: { id, label, value }.
+// "value" = delta pemakaian meter yang diminta pada periode itu. Rata-rata
+// dihitung di FRONTEND dari kolom value ini (rata-rata dari data yang
+// ke-tarik pada rentang tanggal yang dipilih), bukan dihitung di backend.
+function formatEnergyWaterRows(groupedRows) {
+  return groupedRows
     .sort((a, b) => (a.label > b.label ? 1 : a.label < b.label ? -1 : 0))
-    .map((r, idx) => ({
-      id: idx + 1,
-      label: r.label,
-      trane1: r.trane1,
-      trane2: r.trane2,
-      average: Number(((r.trane1 + r.trane2) / 2).toFixed(3)),
-    }));
+    .map((r, idx) => ({ id: idx + 1, label: r.label, value: r.value }));
 }
 
 module.exports = {
@@ -675,11 +665,16 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
   getEnergyWaterHistorical: async (request, response) => {
     try {
       const { start, finish } = request.query;
-      let { period } = request.query;
+      let { period, meter } = request.query;
       if (!start || !finish) {
         return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
       }
       if (!ENERGY_WATER_PERIODS.includes(period)) period = "hourly";
+      if (!Object.prototype.hasOwnProperty.call(ENERGY_WATER_TABLES, meter)) {
+        return response.status(400).send({
+          message: `Parameter meter wajib diisi salah satu dari: ${Object.keys(ENERGY_WATER_TABLES).join(", ")}`,
+        });
+      }
 
       const fetchMeterRows = (tableName) => {
         const q = `
@@ -694,16 +689,14 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         return query(q);
       };
 
-      const [rows1, rows2] = await Promise.all([
-        fetchMeterRows(ENERGY_WATER_TABLES.trane1),
-        fetchMeterRows(ENERGY_WATER_TABLES.trane2),
-      ]);
+      // Cuma query 1 tabel sesuai meter yang diminta - bukan Trane1+Trane2
+      // sekaligus kayak sebelumnya. Rata-rata dihitung di frontend dari data
+      // yang ke-tarik ini.
+      const rawRows = await fetchMeterRows(ENERGY_WATER_TABLES[meter]);
+      const grouped = groupEnergyWaterByPeriod(computeEnergyWaterDeltas(rawRows), period);
+      const rows = formatEnergyWaterRows(grouped);
 
-      const delta1 = groupEnergyWaterByPeriod(computeEnergyWaterDeltas(rows1), period);
-      const delta2 = groupEnergyWaterByPeriod(computeEnergyWaterDeltas(rows2), period);
-      const merged = mergeEnergyWaterMeters(delta1, delta2);
-
-      return response.status(200).send({ period, data: merged });
+      return response.status(200).send({ period, meter, data: rows });
     } catch (err) {
       return handleDbError(err, response, "getEnergyWaterHistorical");
     }
