@@ -15,6 +15,75 @@ function handleDbError(err, res, context) {
   return res.status(500).send({ message: "Gagal mengakses database", detail });
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// ENERGY WATER (Trane1/Trane2 flow meter totalizer) helpers
+// Sumber data: 2 tabel raw per-jam dari flow meter Trane1 & Trane2, kolom
+// `data_format_1` adalah TOTALIZER (nilai kumulatif yang terus naik), BUKAN
+// pemakaian per periode. Supaya dapet pemakaian per jam/hari/bulan, kita
+// ambil selisih antar baris berurutan (delta), baru di-group per periode.
+//
+// Penanganan reset/rollover meter: kalau delta ketemu negatif (totalizer
+// ke-reset ke 0, atau meter diganti), delta itu di-clamp jadi 0 - biar
+// nggak muncul lonjakan minus aneh di grafik/tabel. Ini best-effort, bukan
+// solusi sempurna buat semua kasus reset.
+//
+// ⚠️ Nama tabel di-HARDCODE (bukan dari input user) karena cuma ada 2 meter
+// yang tetap untuk fitur ini - beda kasus sama Area EMS yang dinamis dari DB.
+// ─────────────────────────────────────────────────────────────────────────
+const ENERGY_WATER_TABLES = {
+  trane1: "cMT-C21B_Trane1_data",
+  trane2: "cMT-C21B_Trane2_data",
+};
+const ENERGY_WATER_PERIODS = ["hourly", "daily", "monthly"];
+
+// rows: [{ ts, label, totalizer }] terurut ascending berdasarkan waktu.
+// return: [{ label, value }] delta antar baris berurutan (baris pertama
+// dibuang karena belum ada baseline buat dihitung selisihnya).
+function computeEnergyWaterDeltas(rows) {
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = Number(rows[i - 1].totalizer);
+    const curr = Number(rows[i].totalizer);
+    let delta = curr - prev;
+    if (!Number.isFinite(delta) || delta < 0) delta = 0; // reset/rollover/data aneh
+    out.push({ label: rows[i].label, value: Number(delta.toFixed(3)) });
+  }
+  return out;
+}
+
+// Group delta hourly ke daily/monthly pakai potongan string label
+// ('YYYY-MM-DD HH:mm:ss' -> 'YYYY-MM-DD' buat daily, 'YYYY-MM' buat monthly).
+function groupEnergyWaterByPeriod(deltaRows, period) {
+  if (period === "hourly") return deltaRows;
+  const map = new Map();
+  for (const row of deltaRows) {
+    const key = period === "monthly" ? row.label.slice(0, 7) : row.label.slice(0, 10);
+    if (!map.has(key)) map.set(key, { label: key, value: 0 });
+    map.get(key).value += row.value;
+  }
+  return Array.from(map.values()).map((r) => ({ ...r, value: Number(r.value.toFixed(3)) }));
+}
+
+// Gabung hasil grouping Trane1 & Trane2 jadi satu baris per label (full
+// outer join by label), sekalian hitung average-nya buat grafik tengah.
+function mergeEnergyWaterMeters(trane1Grouped, trane2Grouped) {
+  const map = new Map();
+  trane1Grouped.forEach((r) => map.set(r.label, { label: r.label, trane1: r.value, trane2: 0 }));
+  trane2Grouped.forEach((r) => {
+    if (map.has(r.label)) map.get(r.label).trane2 = r.value;
+    else map.set(r.label, { label: r.label, trane1: 0, trane2: r.value });
+  });
+  return Array.from(map.values())
+    .sort((a, b) => (a.label > b.label ? 1 : a.label < b.label ? -1 : 0))
+    .map((r, idx) => ({
+      id: idx + 1,
+      label: r.label,
+      trane1: r.trane1,
+      trane2: r.trane2,
+      average: Number(((r.trane1 + r.trane2) / 2).toFixed(3)),
+    }));
+}
+
 module.exports = {
   fetchOee: async (request, response) => {
     try {
@@ -595,6 +664,48 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       });
     } catch (err) {
       return handleDbError(err, response, "getAllDataChiller");
+    }
+  },
+  //===================================================================================
+
+
+  //===============ENERGY WATER (Trane1/Trane2 flow meter totalizer)==================
+  // Helper functions & konstanta ada di atas, dekat handleDbError (bukan di
+  // sini) karena object literal module.exports cuma boleh isi key: value.
+  getEnergyWaterHistorical: async (request, response) => {
+    try {
+      const { start, finish } = request.query;
+      let { period } = request.query;
+      if (!start || !finish) {
+        return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
+      }
+      if (!ENERGY_WATER_PERIODS.includes(period)) period = "hourly";
+
+      const fetchMeterRows = (tableName) => {
+        const q = `
+          SELECT
+            \`time@timestamp\` AS ts,
+            DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600), '%Y-%m-%d %H:%i:%s') AS label,
+            data_format_1 AS totalizer
+          FROM ${db.escapeId(tableName)}
+          WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+          ORDER BY \`time@timestamp\` ASC
+        `;
+        return query(q);
+      };
+
+      const [rows1, rows2] = await Promise.all([
+        fetchMeterRows(ENERGY_WATER_TABLES.trane1),
+        fetchMeterRows(ENERGY_WATER_TABLES.trane2),
+      ]);
+
+      const delta1 = groupEnergyWaterByPeriod(computeEnergyWaterDeltas(rows1), period);
+      const delta2 = groupEnergyWaterByPeriod(computeEnergyWaterDeltas(rows2), period);
+      const merged = mergeEnergyWaterMeters(delta1, delta2);
+
+      return response.status(200).send({ period, data: merged });
+    } catch (err) {
+      return handleDbError(err, response, "getEnergyWaterHistorical");
     }
   },
   //===================================================================================
