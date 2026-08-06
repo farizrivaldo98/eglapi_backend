@@ -74,6 +74,66 @@ function formatEnergyWaterRows(groupedRows) {
     .map((r, idx) => ({ id: idx + 1, label: r.label, value: r.value }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// ENERGY POWER (PP UTY1/PP LAPI1 power meter totalizer) helpers
+// Sumber data: 2 tabel raw per-jam dari power meter PP UTY1 & PP LAPI1,
+// kolom `data_format_4` adalah TOTALIZER Total Energy (Wh) (nilai kumulatif
+// yang terus naik), BUKAN pemakaian per periode. Sama persis pola-nya
+// dengan ENERGY WATER di atas: ambil selisih antar baris berurutan (delta),
+// baru di-group per periode.
+//
+// Penanganan reset/rollover meter: kalau delta ketemu negatif (totalizer
+// ke-reset ke 0, atau meter diganti), delta itu di-clamp jadi 0 - biar
+// nggak muncul lonjakan minus aneh di grafik/tabel. Ini best-effort, bukan
+// solusi sempurna buat semua kasus reset.
+//
+// ⚠️ Nama tabel di-HARDCODE (bukan dari input user) karena cuma ada 2 meter
+// yang tetap untuk fitur ini - beda kasus sama Area EMS yang dinamis dari DB.
+// Konversi Wh/kWh/MWh dilakukan di FRONTEND, backend selalu balikin Wh.
+// ─────────────────────────────────────────────────────────────────────────
+const ENERGY_POWER_TABLES = {
+  uty1: "cMT-C21B_PP_UTY1_data",
+  lapi1: "cMT-C21B_PP_LAPI1_data",
+};
+const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
+
+// rows: [{ ts, label, totalizer }] terurut ascending berdasarkan waktu.
+// return: [{ label, value }] delta antar baris berurutan (baris pertama
+// dibuang karena belum ada baseline buat dihitung selisihnya).
+function computeEnergyPowerDeltas(rows) {
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prev = Number(rows[i - 1].totalizer);
+    const curr = Number(rows[i].totalizer);
+    let delta = curr - prev;
+    if (!Number.isFinite(delta) || delta < 0) delta = 0; // reset/rollover/data aneh
+    out.push({ label: rows[i].label, value: Number(delta.toFixed(3)) });
+  }
+  return out;
+}
+
+// Group delta hourly ke daily/monthly pakai potongan string label
+// ('YYYY-MM-DD HH:mm:ss' -> 'YYYY-MM-DD' buat daily, 'YYYY-MM' buat monthly).
+function groupEnergyPowerByPeriod(deltaRows, period) {
+  if (period === "hourly") return deltaRows;
+  const map = new Map();
+  for (const row of deltaRows) {
+    const key = period === "monthly" ? row.label.slice(0, 7) : row.label.slice(0, 10);
+    if (!map.has(key)) map.set(key, { label: key, value: 0 });
+    map.get(key).value += row.value;
+  }
+  return Array.from(map.values()).map((r) => ({ ...r, value: Number(r.value.toFixed(3)) }));
+}
+
+// Format hasil grouping jadi bentuk output generik: { id, label, value }.
+// "value" = delta pemakaian energi (Wh) meter yang diminta pada periode itu.
+// Rata-rata & konversi unit dihitung di FRONTEND dari kolom value ini.
+function formatEnergyPowerRows(groupedRows) {
+  return groupedRows
+    .sort((a, b) => (a.label > b.label ? 1 : a.label < b.label ? -1 : 0))
+    .map((r, idx) => ({ id: idx + 1, label: r.label, value: r.value }));
+}
+
 module.exports = {
   fetchOee: async (request, response) => {
     try {
@@ -699,6 +759,51 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       return response.status(200).send({ period, meter, data: rows });
     } catch (err) {
       return handleDbError(err, response, "getEnergyWaterHistorical");
+    }
+  },
+  //===================================================================================
+
+
+  //===============ENERGY POWER (PP UTY1/PP LAPI1 power meter totalizer)==============
+  // Helper functions & konstanta ada di atas, deket ENERGY_WATER_TABLES (bukan
+  // di sini) karena object literal module.exports cuma boleh isi key: value.
+  getEnergyPowerHistorical: async (request, response) => {
+    try {
+      const { start, finish } = request.query;
+      let { period, meter } = request.query;
+      if (!start || !finish) {
+        return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
+      }
+      if (!ENERGY_POWER_PERIODS.includes(period)) period = "hourly";
+      if (!Object.prototype.hasOwnProperty.call(ENERGY_POWER_TABLES, meter)) {
+        return response.status(400).send({
+          message: `Parameter meter wajib diisi salah satu dari: ${Object.keys(ENERGY_POWER_TABLES).join(", ")}`,
+        });
+      }
+
+      const fetchMeterRows = (tableName) => {
+        const q = `
+          SELECT
+            \`time@timestamp\` AS ts,
+            DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600), '%Y-%m-%d %H:%i:%s') AS label,
+            data_format_4 AS totalizer
+          FROM ${db.escapeId(tableName)}
+          WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+          ORDER BY \`time@timestamp\` ASC
+        `;
+        return query(q);
+      };
+
+      // Cuma query 1 tabel sesuai meter yang diminta - bukan UTY1+LAPI1
+      // sekaligus. Rata-rata & konversi unit dihitung di frontend dari data
+      // yang ke-tarik ini (backend selalu balikin satuan Wh).
+      const rawRows = await fetchMeterRows(ENERGY_POWER_TABLES[meter]);
+      const grouped = groupEnergyPowerByPeriod(computeEnergyPowerDeltas(rawRows), period);
+      const rows = formatEnergyPowerRows(grouped);
+
+      return response.status(200).send({ period, meter, data: rows });
+    } catch (err) {
+      return handleDbError(err, response, "getEnergyPowerHistorical");
     }
   },
   //===================================================================================

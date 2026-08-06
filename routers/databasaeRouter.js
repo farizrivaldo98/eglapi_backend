@@ -43,4 +43,7 @@ routers.put("/page-access",veryfyToken,checkRole,databaseControllers.updatePageA
 // Energy Water - historical hourly/daily/monthly consumption (Trane1/Trane2 flow meter totalizer)
 routers.get("/getEnergyWaterHistorical", databaseControllers.getEnergyWaterHistorical);
 
+// Energy Power - historical hourly/daily/monthly consumption (PP UTY1/PP LAPI1 power meter totalizer)
+routers.get("/getEnergyPowerHistorical", databaseControllers.getEnergyPowerHistorical);
+
 module.exports = routers;
