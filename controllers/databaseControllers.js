@@ -124,15 +124,47 @@ function computeEnergyPowerDeltas(rows) {
 
 // Group delta hourly ke daily/monthly pakai potongan string label
 // ('YYYY-MM-DD HH:mm:ss' -> 'YYYY-MM-DD' buat daily, 'YYYY-MM' buat monthly).
+// function groupEnergyPowerByPeriod(deltaRows, period) {
+//   if (period === "hourly") return deltaRows;
+//   const map = new Map();
+//   for (const row of deltaRows) {
+//     const key = period === "monthly" ? row.label.slice(0, 7) : row.label.slice(0, 10);
+//     if (!map.has(key)) map.set(key, { label: key, value: 0 });
+//     map.get(key).value += row.value;
+//   }
+//   return Array.from(map.values()).map((r) => ({ ...r, value: Number(r.value.toFixed(3)) }));
+// }
 function groupEnergyPowerByPeriod(deltaRows, period) {
-  if (period === "hourly") return deltaRows;
   const map = new Map();
+
   for (const row of deltaRows) {
-    const key = period === "monthly" ? row.label.slice(0, 7) : row.label.slice(0, 10);
-    if (!map.has(key)) map.set(key, { label: key, value: 0 });
-    map.get(key).value += row.value;
+    let key;
+
+    if (period === "hourly") {
+      // YYYY-MM-DD HH:00:00
+      key = row.label.slice(0, 13) + ":00:00";
+    } else if (period === "daily") {
+      // YYYY-MM-DD
+      key = row.label.slice(0, 10);
+    } else if (period === "monthly") {
+      // YYYY-MM
+      key = row.label.slice(0, 7);
+    }
+
+    if (!map.has(key)) {
+      map.set(key, {
+        label: key,
+        value: 0,
+      });
+    }
+
+    map.get(key).value += Number(row.value) || 0;
   }
-  return Array.from(map.values()).map((r) => ({ ...r, value: Number(r.value.toFixed(3)) }));
+
+  return Array.from(map.values()).map((r) => ({
+    ...r,
+    value: Number(r.value.toFixed(3)),
+  }));
 }
 
 // Format hasil grouping jadi bentuk output generik: { id, label, value }.
