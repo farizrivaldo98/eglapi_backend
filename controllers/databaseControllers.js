@@ -97,6 +97,16 @@ const ENERGY_POWER_TABLES = {
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
 
+// Dipakai KHUSUS oleh getEnergyPowerParameters (V/A/kW/Hz) - parameter ini
+// bacaan instan (bukan totalizer), jadi agregasi AVG/MAX/MIN per periode
+// dilakukan langsung di SQL pakai GROUP BY hasil DATE_FORMAT ini. Beda
+// pendekatan sama Total Energy di atas yang harus dihitung delta di JS dulu.
+const ENERGY_POWER_PARAM_PERIOD_FORMAT = {
+  hourly: "%Y-%m-%d %H:00:00",
+  daily: "%Y-%m-%d",
+  monthly: "%Y-%m",
+};
+
 // rows: [{ ts, label, totalizer }] terurut ascending berdasarkan waktu.
 // return: [{ label, value }] delta antar baris berurutan (baris pertama
 // dibuang karena belum ada baseline buat dihitung selisihnya).
@@ -804,6 +814,61 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       return response.status(200).send({ period, meter, data: rows });
     } catch (err) {
       return handleDbError(err, response, "getEnergyPowerHistorical");
+    }
+  },
+  //===================================================================================
+
+
+  //=========ENERGY POWER PARAMETERS (Voltage/Current/Power/Frequency analysis)=======
+  // Beda sama getEnergyPowerHistorical di atas: data_format_0..3 itu bacaan
+  // instan (Voltage, Current, Power, Frequency) - BUKAN totalizer. Jadi gak
+  // ada delta, tinggal AVG/MAX/MIN langsung per bucket periode di SQL.
+  getEnergyPowerParameters: async (request, response) => {
+    try {
+      const { start, finish } = request.query;
+      let { period, meter } = request.query;
+      if (!start || !finish) {
+        return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
+      }
+      if (!ENERGY_POWER_PERIODS.includes(period)) period = "hourly";
+      if (!Object.prototype.hasOwnProperty.call(ENERGY_POWER_TABLES, meter)) {
+        return response.status(400).send({
+          message: `Parameter meter wajib diisi salah satu dari: ${Object.keys(ENERGY_POWER_TABLES).join(", ")}`,
+        });
+      }
+
+      const tableName = ENERGY_POWER_TABLES[meter];
+      const dateFormat = ENERGY_POWER_PARAM_PERIOD_FORMAT[period];
+
+      const q = `
+        SELECT
+          DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600), ${db.escape(dateFormat)}) AS label,
+          AVG(data_format_0) AS voltage_avg, MAX(data_format_0) AS voltage_max, MIN(data_format_0) AS voltage_min,
+          AVG(data_format_1) AS current_avg, MAX(data_format_1) AS current_max, MIN(data_format_1) AS current_min,
+          AVG(data_format_2) AS power_avg, MAX(data_format_2) AS power_max, MIN(data_format_2) AS power_min,
+          AVG(data_format_3) AS freq_avg, MAX(data_format_3) AS freq_max, MIN(data_format_3) AS freq_min
+        FROM ${db.escapeId(tableName)}
+        WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+        GROUP BY label
+        ORDER BY label ASC
+      `;
+
+      const rawRows = await query(q);
+
+      const round = (v, d) => (v === null || v === undefined ? null : Number(Number(v).toFixed(d)));
+
+      const rows = rawRows.map((r, idx) => ({
+        id: idx + 1,
+        label: r.label,
+        voltage: { avg: round(r.voltage_avg, 1), max: round(r.voltage_max, 1), min: round(r.voltage_min, 1) },
+        current: { avg: round(r.current_avg, 2), max: round(r.current_max, 2), min: round(r.current_min, 2) },
+        power: { avg: round(r.power_avg, 3), max: round(r.power_max, 3), min: round(r.power_min, 3) },
+        frequency: { avg: round(r.freq_avg, 2), max: round(r.freq_max, 2), min: round(r.freq_min, 2) },
+      }));
+
+      return response.status(200).send({ period, meter, data: rows });
+    } catch (err) {
+      return handleDbError(err, response, "getEnergyPowerParameters");
     }
   },
   //===================================================================================

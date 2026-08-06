@@ -46,4 +46,7 @@ routers.get("/getEnergyWaterHistorical", databaseControllers.getEnergyWaterHisto
 // Energy Power - historical hourly/daily/monthly consumption (PP UTY1/PP LAPI1 power meter totalizer)
 routers.get("/getEnergyPowerHistorical", databaseControllers.getEnergyPowerHistorical);
 
+// Energy Power - Voltage/Current/Power/Frequency analysis (AVG/MAX/MIN per periode)
+routers.get("/getEnergyPowerParameters", databaseControllers.getEnergyPowerParameters);
+
 module.exports = routers;
