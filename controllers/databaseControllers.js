@@ -98,7 +98,7 @@ const ENERGY_POWER_TABLES = {
   SDP1_Ofc1:"cMT-C21B_SDP1_OFC1_data"
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
-
+  
 // Dipakai KHUSUS oleh getEnergyPowerParameters (V/A/kW/Hz) - parameter ini
 // bacaan instan (bukan totalizer), jadi agregasi AVG/MAX/MIN per periode
 // dilakukan langsung di SQL pakai GROUP BY hasil DATE_FORMAT ini. Beda
