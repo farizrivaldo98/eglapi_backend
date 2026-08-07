@@ -94,6 +94,8 @@ function formatEnergyWaterRows(groupedRows) {
 const ENERGY_POWER_TABLES = {
   uty1: "cMT-C21B_PP_UTY1_data",
   lapi1: "cMT-C21B_PP_LAPI1_data",
+  SDP2_Pro1:"cMT-C21B_SDP2_Pro1_data",
+  C21B_SDP1:"cMT-C21B_SDP1_OFC1_data"
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
 
