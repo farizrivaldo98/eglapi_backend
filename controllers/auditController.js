@@ -9,7 +9,9 @@ const ALLOWED_ACTIONS = [
   "ADMIN_UPDATE_PAGE_ACCESS", // <--- Fitur baru ditambahkan di sini
   "SCADA_EDIT_LIMIT",
   "VIEW_CHILLER",
-  "VIEW_ENERGY_WATER"
+  "VIEW_ENERGY_WATER",
+  "VIEW_ENERGY_WATER_COMPARISON",
+  "VIEW_ENERGY_POWER_COMPARISON"
 ];
 
 module.exports = {
