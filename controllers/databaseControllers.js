@@ -731,35 +731,24 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
 
 getAreaGroupedByAhu: async (request, response) => {
     try {
-      // 1. Menggunakan db.query dibungkus Promise untuk mappingRows
-      const mappingRows = await new Promise((resolve, reject) => {
-        db.query(
-          `SELECT ahu, table_name FROM ems_area_ahu_mapping ORDER BY ahu, table_name`,
-          (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
-          }
-        );
-      });
+      const mappingRows = await query(
+        `SELECT ahu, table_name FROM ems_area_ahu_mapping ORDER BY ahu, table_name`
+      );
 
+      // --- PERBAIKAN DI SINI ---
+      // Menambahkan TABLE_SCHEMA = 'uty_db1_backup' agar tidak bocor mengambil tabel dari uty_db1
       const liveTablesQuery = `SELECT TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES
-WHERE
-(
+WHERE TABLE_SCHEMA = 'uty_db1_backup'
+AND (
     TABLE_NAME LIKE '%cMT-C21B_%'
     OR TABLE_NAME LIKE '%_data'
 )
 AND TABLE_NAME NOT LIKE '%_data_format'
 AND TABLE_NAME NOT LIKE '%_data_section'
 AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
-
-      // 2. Menggunakan db.query dibungkus Promise untuk liveTables
-      const liveTables = await new Promise((resolve, reject) => {
-        db.query(liveTablesQuery, (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        });
-      });
+      
+      const liveTables = await query(liveTablesQuery);
 
       const mappedNames = new Set(mappingRows.map((row) => row.table_name));
       const grouped = {};
