@@ -682,11 +682,65 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
   // Ruangan yang ada di DB tapi belum ke-mapping ke AHU manapun tetap
   // ditampilkan, dikumpulkan di grup "Belum Dikelompokkan" - supaya
   // ruangan baru nggak hilang begitu aja dari dropdown.
-  getAreaGroupedByAhu: async (request, response) => {
+
+
+
+//   getAreaGroupedByAhu: async (request, response) => {
+//     try {
+//       const mappingRows = await query(
+//         `SELECT ahu, table_name FROM ems_area_ahu_mapping ORDER BY ahu, table_name`
+//       );
+
+//       const liveTablesQuery = `SELECT TABLE_NAME
+// FROM INFORMATION_SCHEMA.TABLES
+// WHERE
+// (
+//     TABLE_NAME LIKE '%cMT-C21B_%'
+//     OR TABLE_NAME LIKE '%_data'
+// )
+// AND TABLE_NAME NOT LIKE '%_data_format'
+// AND TABLE_NAME NOT LIKE '%_data_section'
+// AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
+//       const liveTables = await query(liveTablesQuery);
+
+//       const mappedNames = new Set(mappingRows.map((row) => row.table_name));
+//       const grouped = {};
+
+//       mappingRows.forEach((row) => {
+//         if (!grouped[row.ahu]) grouped[row.ahu] = [];
+//         grouped[row.ahu].push(row.table_name);
+//       });
+
+//       const unmapped = liveTables
+//         .map((row) => row.TABLE_NAME)
+//         .filter((name) => !mappedNames.has(name));
+
+//       if (unmapped.length > 0) {
+//         grouped["Belum Dikelompokkan"] = unmapped;
+//       }
+
+//       const result = Object.keys(grouped)
+//         .sort()
+//         .map((ahu) => ({ ahu, rooms: grouped[ahu] }));
+
+//       return response.status(200).send(result);
+//     } catch (err) {
+//       return handleDbError(err, response, "getAreaGroupedByAhu");
+//     }
+//   },
+
+getAreaGroupedByAhu: async (request, response) => {
     try {
-      const mappingRows = await query(
-        `SELECT ahu, table_name FROM ems_area_ahu_mapping ORDER BY ahu, table_name`
-      );
+      // 1. Menggunakan db.query dibungkus Promise untuk mappingRows
+      const mappingRows = await new Promise((resolve, reject) => {
+        db.query(
+          `SELECT ahu, table_name FROM ems_area_ahu_mapping ORDER BY ahu, table_name`,
+          (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          }
+        );
+      });
 
       const liveTablesQuery = `SELECT TABLE_NAME
 FROM INFORMATION_SCHEMA.TABLES
@@ -698,7 +752,14 @@ WHERE
 AND TABLE_NAME NOT LIKE '%_data_format'
 AND TABLE_NAME NOT LIKE '%_data_section'
 AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
-      const liveTables = await query(liveTablesQuery);
+
+      // 2. Menggunakan db.query dibungkus Promise untuk liveTables
+      const liveTables = await new Promise((resolve, reject) => {
+        db.query(liveTablesQuery, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
 
       const mappedNames = new Set(mappingRows.map((row) => row.table_name));
       const grouped = {};
