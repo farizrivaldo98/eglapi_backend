@@ -763,7 +763,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         .filter((name) => !mappedNames.has(name));
 
       if (unmapped.length > 0) {
-        grouped["Belum Dikelompokkan"] = unmapped;
+        //grouped["Belum Dikelompokkan"] = unmapped;
       }
 
       const result = Object.keys(grouped)
