@@ -101,9 +101,8 @@ const ENERGY_POWER_TABLES = {
   SDP1_OFC23 : "cMT-C21B_SDP1-OFC23_data",
    SDP2_PRO2 :"cMT-C21B_SDP2-PRO2_data",
    SDP1_OFC45 :"cMT-C21B_SDP1-OFC45_data",
-   SDP2_OFC45 :"cMT-C21B_SDP2-OFC45_data"
-
-
+   SDP2_OFC45 :"cMT-C21B_SDP2-OFC45_data",
+   SDP_MC :"cMT-C21B_SDP-MC_data"
   
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
