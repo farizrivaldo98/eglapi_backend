@@ -95,8 +95,8 @@ function formatEnergyWaterRows(groupedRows) {
 const ENERGY_POWER_TABLES = {
   uty1: "cMT-C21B_PP_UTY1_data",
   lapi1: "cMT-C21B_PP_LAPI1_data",
-  SDP2_Pro1:"cMT-C21B_SDP2_Pro1_data",
-  SDP1_Ofc1:"cMT-C21B_SDP1_OFC1_data",
+  SDP2_PRO1:"cMT-C21B_SDP2-PRO1_data",
+  SDP1_OFC1:"cMT-C21B_SDP1-OFC1_data",
   PP_Chiller:"cMT-C21B_PP_Chiller_data",
   SDP1_OFC23 : "cMT-C21B_SDP1-OFC23_data",
    SDP2_PRO2 :"cMT-C21B_SDP2-PRO2_data",
