@@ -33,7 +33,10 @@ function handleDbError(err, res, context) {
 const ENERGY_WATER_TABLES = {
   trane1: "cMT-C21B_Trane1_data",
   trane2: "cMT-C21B_Trane2_data",
-  SW_Supplay: "cMT-C21B_SW_Supplay_data"
+  SW_Supplay: "cMT-C21B_SW_Supplay_data",
+  PDAM_Supplay: "cMT-C21B_PDAM_Supplay_data",
+  PWG_Return:"cMT-C21B_PWG_Return_data"
+
 };
 const ENERGY_WATER_PERIODS = ["hourly", "daily", "monthly"];
 
