@@ -105,8 +105,11 @@ const ENERGY_POWER_TABLES = {
    SDP2_PRO2 :"cMT-C21B_SDP2-PRO2_data",
    SDP1_OFC45 :"cMT-C21B_SDP1-OFC45_data",
    SDP2_OFC45 :"cMT-C21B_SDP2-OFC45_data",
-   SDP_MC :"cMT-C21B_SDP-MC_data"
-  
+   SDP_MC :"cMT-C21B_SDP-MC_data",
+   PP_HVAC_Mezzanine3 :"cMT-C21B_PP_HVAC_Mezzanine3_data",
+  PP_LP :"cMT-C21B_PP_LP_data",
+SDP2_Pro3 :"cMT-C21B_SDP2_Pro3_data",
+
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
   
