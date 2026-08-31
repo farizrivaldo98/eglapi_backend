@@ -212,14 +212,14 @@ const MACHINE_CONFIG = {
     // urutan HARUS sama dengan data_format_0..7 di tabel (lihat Node-RED
     // function "Build Insert FBD_GEA" / "Parse & Cache FBD_GEA")
     params: [
-      { col: 0, key: "speedMotor", label: "Speed Motor", tag: "SC3076", unit: "Hz" },
-      { col: 1, key: "outletTemp", label: "Outlet Temp", tag: "TIS3012", unit: "°C" },
-      { col: 2, key: "productTemp", label: "Product Temp", tag: "TIC0115", unit: "°C" },
-      { col: 3, key: "inletTemp", label: "Inlet Temp", tag: "TIC2001", unit: "°C" },
-      { col: 4, key: "valvePosition", label: "Valve Position", tag: "FCV2002", unit: "%" },
-      { col: 5, key: "inletPress", label: "Inlet Pressure", tag: "PI0140", unit: "Pa" },
-      { col: 6, key: "prodPress", label: "Product Pressure", tag: "PI0141", unit: "Pa" },
-      { col: 7, key: "outPress", label: "Outlet Pressure", tag: "PI0142", unit: "Pa" },
+      { col: 0, key: "SC3076_SpeedMotor", label: "Speed Motor", tag: "SC3076", unit: "Hz" },
+      { col: 1, key: "TIS3012_OutletTemp", label: "Outlet Temp", tag: "TIS3012", unit: "°C" },
+      { col: 2, key: "TIC0115_ProductTemp", label: "Product Temp", tag: "TIC0115", unit: "°C" },
+      { col: 3, key: "TIC2001_InletTemp", label: "Inlet Temp", tag: "TIC2001", unit: "°C" },
+      { col: 4, key: "FCV2002_ValvePosition", label: "Valve Position", tag: "FCV2002", unit: "%" },
+      { col: 5, key: "PI0140_InletPress", label: "Inlet Pressure", tag: "PI0140", unit: "Pa" },
+      { col: 6, key: "PI0141_ProdPress", label: "Product Pressure", tag: "PI0141", unit: "Pa" },
+      { col: 7, key: "PI0142_OutPress", label: "Outlet Pressure", tag: "PI0142", unit: "Pa" },
     ],
     defaultFlowCol: 0, // default parameter acuan running = Speed Motor
     defaultThreshold: 0,
