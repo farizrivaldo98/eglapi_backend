@@ -212,7 +212,7 @@ const MACHINE_CONFIG = {
     // urutan HARUS sama dengan data_format_0..7 di tabel (lihat Node-RED
     // function "Build Insert FBD_GEA" / "Parse & Cache FBD_GEA")FIC2000_Flow
     params: [
-      { col: 0, key: "SC3076_SpeedMotor", label: "Speed Motor", tag: "SC3076", unit: "Hz" },
+      { col: 0, key: "SC3076_SpeedMotor", label: "Speed Motor", tag: "SC3076", unit: "%" },
       { col: 1, key: "TIS3012_OutletTemp", label: "Outlet Temp", tag: "TIS3012", unit: "°C" },
       { col: 2, key: "TIC0115_ProductTemp", label: "Product Temp", tag: "TIC0115", unit: "°C" },
       { col: 3, key: "TIC2001_InletTemp", label: "Inlet Temp", tag: "TIC2001", unit: "°C" },
