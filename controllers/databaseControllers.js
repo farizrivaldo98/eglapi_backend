@@ -222,7 +222,7 @@ const MACHINE_CONFIG = {
       { col: 7, key: "outPress", label: "Outlet Pressure", tag: "PI0142", unit: "Pa" },
     ],
     defaultFlowCol: 0, // default parameter acuan running = Speed Motor
-    defaultThreshold: 200,
+    defaultThreshold: 0,
   },
   // Tambah mesin lain di sini kalau ada, contoh:
   // mesin_lain: { table: "cMT-C21B_XXX_data", label: "Mesin Lain", params: [...], defaultFlowCol: 0, defaultThreshold: 200 },
