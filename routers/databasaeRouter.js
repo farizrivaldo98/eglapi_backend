@@ -50,11 +50,11 @@ routers.get("/getEnergyPowerHistorical", databaseControllers.getEnergyPowerHisto
 routers.get("/getEnergyPowerParameters", databaseControllers.getEnergyPowerParameters);
 
 
-router.get("/getMachineConfig", Controller.getMachineConfig);
-router.get("/getMachineHistorical", Controller.getMachineHistorical);
-router.get("/getMachineRunningHours", Controller.getMachineRunningHours);
-router.get("/getMachineShiftConfig", Controller.getMachineShiftConfig);
-router.post("/updateMachineShiftConfig", Controller.updateMachineShiftConfig);
+routers.get("/getMachineConfig", Controller.getMachineConfig);
+routers.get("/getMachineHistorical", Controller.getMachineHistorical);
+routers.get("/getMachineRunningHours", Controller.getMachineRunningHours);
+routers.get("/getMachineShiftConfig", Controller.getMachineShiftConfig);
+routers.post("/updateMachineShiftConfig", Controller.updateMachineShiftConfig);
 
 
 module.exports = routers;
