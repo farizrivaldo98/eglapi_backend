@@ -192,6 +192,70 @@ function formatEnergyPowerRows(groupedRows) {
     .map((r, idx) => ({ id: idx + 1, label: r.label, value: r.value }));
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// MACHINE (mesin produksi - realtime, historical parameter, & running hours)
+// Sumber data: tabel raw per-menit per mesin (skema data_format_0..7, tiap
+// kolom = 1 parameter instan, BUKAN totalizer). Beda mesin bisa beda jumlah
+// & arti parameter -> di-config per key di MACHINE_CONFIG, tinggal tambah
+// key baru kalau ada mesin baru yang mau dipantau.
+//
+// Deteksi RUNNING/STOP: salah satu parameter (biasanya speed/flow, default
+// "flowCol") dipakai sebagai acuan - kalau nilainya > threshold dianggap
+// RUNNING, selain itu STOP. flowCol & threshold dikirim dari frontend biar
+// bisa disesuaikan per mesin tanpa ubah backend (default per mesin ada di
+// MACHINE_CONFIG[...].defaultFlowCol / defaultThreshold).
+// ─────────────────────────────────────────────────────────────────────────
+const MACHINE_CONFIG = {
+  fbd_gea: {
+    table: "cMT-C21B_FBD_GEA_data",
+    label: "FBD GEA",
+    // urutan HARUS sama dengan data_format_0..7 di tabel (lihat Node-RED
+    // function "Build Insert FBD_GEA" / "Parse & Cache FBD_GEA")
+    params: [
+      { col: 0, key: "speedMotor", label: "Speed Motor", tag: "SC3076", unit: "Hz" },
+      { col: 1, key: "outletTemp", label: "Outlet Temp", tag: "TIS3012", unit: "°C" },
+      { col: 2, key: "productTemp", label: "Product Temp", tag: "TIC0115", unit: "°C" },
+      { col: 3, key: "inletTemp", label: "Inlet Temp", tag: "TIC2001", unit: "°C" },
+      { col: 4, key: "valvePosition", label: "Valve Position", tag: "FCV2002", unit: "%" },
+      { col: 5, key: "inletPress", label: "Inlet Pressure", tag: "PI0140", unit: "Pa" },
+      { col: 6, key: "prodPress", label: "Product Pressure", tag: "PI0141", unit: "Pa" },
+      { col: 7, key: "outPress", label: "Outlet Pressure", tag: "PI0142", unit: "Pa" },
+    ],
+    defaultFlowCol: 0, // default parameter acuan running = Speed Motor
+    defaultThreshold: 200,
+  },
+  // Tambah mesin lain di sini kalau ada, contoh:
+  // mesin_lain: { table: "cMT-C21B_XXX_data", label: "Mesin Lain", params: [...], defaultFlowCol: 0, defaultThreshold: 200 },
+};
+
+const MACHINE_SHIFT_DEFAULT = {
+  shift1_start: "06:00", shift1_end: "14:00",
+  shift2_start: "14:00", shift2_end: "22:00",
+  shift3_start: "22:00", shift3_end: "06:00",
+};
+
+// "HH:mm" -> menit sejak 00:00. Balikin fallback kalau formatnya salah.
+function hhmmToMinutes(str, fallback) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(str || "").trim());
+  if (!m) return fallback;
+  const h = Number(m[1]);
+  const mi = Number(m[2]);
+  if (h > 23 || mi > 59) return fallback;
+  return h * 60 + mi;
+}
+
+// Cek apakah `minuteOfDay` masuk range shift [start, end). Support shift yang
+// nyebrang tengah malam (mis. 22:00 - 06:00).
+function isInShiftRange(minuteOfDay, startMin, endMin) {
+  if (startMin === endMin) return true; // shift 24 jam penuh
+  if (startMin < endMin) return minuteOfDay >= startMin && minuteOfDay < endMin;
+  return minuteOfDay >= startMin || minuteOfDay < endMin;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
 module.exports = {
   fetchOee: async (request, response) => {
     try {
@@ -822,6 +886,252 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       });
     } catch (err) {
       return handleDbError(err, response, "getAllDataChiller");
+    }
+  },
+  //===================================================================================
+
+
+  //===============MACHINE (mesin - realtime, historical & running hours)============
+  // Konstanta & helper (MACHINE_CONFIG, hhmmToMinutes, isInShiftRange, pad2)
+  // ada di atas, deket handleDbError - bukan di sini karena object literal
+  // module.exports cuma boleh isi key: value.
+
+  // Daftar mesin & parameter yang dipantau - dipakai frontend buat isi
+  // dropdown mesin/parameter tanpa hardcode di React.
+  getMachineConfig: async (request, response) => {
+    try {
+      const machines = Object.keys(MACHINE_CONFIG).map((key) => {
+        const cfg = MACHINE_CONFIG[key];
+        return {
+          key,
+          label: cfg.label,
+          params: cfg.params,
+          defaultFlowCol: cfg.defaultFlowCol,
+          defaultThreshold: cfg.defaultThreshold,
+        };
+      });
+      return response.status(200).send({ machines });
+    } catch (err) {
+      return handleDbError(err, response, "getMachineConfig");
+    }
+  },
+
+  // Semua parameter mesin (data_format_0..7, sudah dikasih nama sesuai
+  // MACHINE_CONFIG) untuk rentang tanggal tertentu - dipakai grafik
+  // historikal parameter.
+  getMachineHistorical: async (request, response) => {
+    try {
+      const { machine, start, finish } = request.query;
+      if (!machine || !start || !finish) {
+        return response.status(400).send({ message: "Parameter machine, start, finish wajib diisi" });
+      }
+      if (!Object.prototype.hasOwnProperty.call(MACHINE_CONFIG, machine)) {
+        return response.status(400).send({
+          message: `Parameter machine wajib diisi salah satu dari: ${Object.keys(MACHINE_CONFIG).join(", ")}`,
+        });
+      }
+      const cfg = MACHINE_CONFIG[machine];
+
+      const selectCols = cfg.params
+        .map((p) => `ROUND(data_format_${p.col}, 2) AS ${db.escapeId(p.key)}`)
+        .join(",\n        ");
+
+      const queryData = `SELECT
+        data_index AS id,
+        DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600), '%Y-%m-%d %H:%i:%s') AS date,
+        ${selectCols}
+        FROM ${db.escapeId(cfg.table)}
+        WHERE
+          FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+        ORDER BY
+          \`time@timestamp\``;
+
+      db.query(queryData, (err, result) => {
+        if (err) return handleDbError(err, response, "getMachineHistorical");
+        return response.status(200).send(result);
+      });
+    } catch (err) {
+      return handleDbError(err, response, "getMachineHistorical");
+    }
+  },
+
+  // Kalkulasi jam RUNNING vs STOP, di-group per hari & per shift.
+  // Logika: ambil tiap baris + timestamp baris berikutnya (window function
+  // LEAD - butuh MariaDB >= 10.2 / MySQL >= 8.0), durasi baris = selisih
+  // waktu ke baris berikutnya. Kalau durasi > MAX_GAP_SEC (data logging
+  // sempat putus/nge-gap), durasi itu DIBUANG - biar downtime sistem gak
+  // asal ke-count jadi RUN atau STOP.
+  getMachineRunningHours: async (request, response) => {
+    try {
+      const { machine, start, finish } = request.query;
+      if (!machine || !start || !finish) {
+        return response.status(400).send({ message: "Parameter machine, start, finish wajib diisi" });
+      }
+      if (!Object.prototype.hasOwnProperty.call(MACHINE_CONFIG, machine)) {
+        return response.status(400).send({
+          message: `Parameter machine wajib diisi salah satu dari: ${Object.keys(MACHINE_CONFIG).join(", ")}`,
+        });
+      }
+      const cfg = MACHINE_CONFIG[machine];
+
+      let { flowCol, threshold } = request.query;
+      flowCol = flowCol === undefined ? cfg.defaultFlowCol : Number(flowCol);
+      threshold = threshold === undefined ? cfg.defaultThreshold : Number(threshold);
+      if (!Number.isInteger(flowCol) || flowCol < 0 || flowCol > 7) {
+        return response.status(400).send({ message: "Parameter flowCol tidak valid (harus 0-7)" });
+      }
+      if (!Number.isFinite(threshold)) {
+        return response.status(400).send({ message: "Parameter threshold tidak valid" });
+      }
+
+      // Setingan shift - kalau gak dikirim dari frontend, pakai default.
+      const s1s = hhmmToMinutes(request.query.shift1Start, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift1_start));
+      const s1e = hhmmToMinutes(request.query.shift1End, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift1_end));
+      const s2s = hhmmToMinutes(request.query.shift2Start, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift2_start));
+      const s2e = hhmmToMinutes(request.query.shift2End, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift2_end));
+      const s3s = hhmmToMinutes(request.query.shift3Start, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift3_start));
+      const s3e = hhmmToMinutes(request.query.shift3End, hhmmToMinutes(MACHINE_SHIFT_DEFAULT.shift3_end));
+      const shiftRanges = [
+        { shift: 1, start: s1s, end: s1e },
+        { shift: 2, start: s2s, end: s2e },
+        { shift: 3, start: s3s, end: s3e },
+      ];
+
+      const MAX_GAP_SEC = 300; // > 5 menit dianggap logging putus, gak dihitung
+
+      const q = `
+        SELECT
+          \`time@timestamp\` AS ts,
+          data_format_${flowCol} AS flowVal,
+          LEAD(\`time@timestamp\`) OVER (ORDER BY \`time@timestamp\` ASC) AS nextTs
+        FROM ${db.escapeId(cfg.table)}
+        WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
+        ORDER BY \`time@timestamp\` ASC
+      `;
+
+      const rows = await query(q);
+
+      const dailyMap = new Map();       // dayKey -> { runSec, stopSec }
+      const shiftDailyMap = new Map();  // `${dayKey}|${shift}` -> { runSec, stopSec }
+      const shiftSummaryMap = new Map([
+        [1, { runSec: 0, stopSec: 0 }],
+        [2, { runSec: 0, stopSec: 0 }],
+        [3, { runSec: 0, stopSec: 0 }],
+      ]);
+
+      for (const row of rows) {
+        if (row.nextTs === null || row.nextTs === undefined) continue; // baris terakhir, gak ada next
+        const gapSec = Number(row.nextTs) - Number(row.ts);
+        if (!Number.isFinite(gapSec) || gapSec <= 0 || gapSec > MAX_GAP_SEC) continue;
+
+        // ts di tabel sudah "+7 jam" waktu disimpan Node-RED (lihat komentar
+        // di flow), jadi buat balikin ke wall-clock WIB tinggal dikurangi 7
+        // jam lagi lalu dibaca sebagai UTC (BUKAN local time server) - persis
+        // pola FROM_UNIXTIME(ts - 7*3600) yang dipakai query lain di file ini.
+        const localMs = (Number(row.ts) - 7 * 3600) * 1000;
+        const d = new Date(localMs);
+        const dayKey = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+        const minuteOfDay = d.getUTCHours() * 60 + d.getUTCMinutes();
+
+        const isRun = Number(row.flowVal) > threshold;
+
+        if (!dailyMap.has(dayKey)) dailyMap.set(dayKey, { runSec: 0, stopSec: 0 });
+        const dailyBucket = dailyMap.get(dayKey);
+        if (isRun) dailyBucket.runSec += gapSec;
+        else dailyBucket.stopSec += gapSec;
+
+        const matchedShift = shiftRanges.find((s) => isInShiftRange(minuteOfDay, s.start, s.end));
+        if (matchedShift) {
+          const shiftKey = `${dayKey}|${matchedShift.shift}`;
+          if (!shiftDailyMap.has(shiftKey)) shiftDailyMap.set(shiftKey, { runSec: 0, stopSec: 0 });
+          const shiftBucket = shiftDailyMap.get(shiftKey);
+          if (isRun) shiftBucket.runSec += gapSec;
+          else shiftBucket.stopSec += gapSec;
+
+          const summaryBucket = shiftSummaryMap.get(matchedShift.shift);
+          if (isRun) summaryBucket.runSec += gapSec;
+          else summaryBucket.stopSec += gapSec;
+        }
+      }
+
+      const toHours = (sec) => Number((sec / 3600).toFixed(2));
+
+      const daily = Array.from(dailyMap.entries())
+        .sort((a, b) => (a[0] > b[0] ? 1 : -1))
+        .map(([date, v]) => ({ date, runHours: toHours(v.runSec), stopHours: toHours(v.stopSec) }));
+
+      const shiftDaily = Array.from(shiftDailyMap.entries())
+        .sort((a, b) => (a[0] > b[0] ? 1 : -1))
+        .map(([key, v]) => {
+          const [date, shift] = key.split("|");
+          return { date, shift: Number(shift), runHours: toHours(v.runSec), stopHours: toHours(v.stopSec) };
+        });
+
+      const shiftSummary = [1, 2, 3].map((shift) => {
+        const v = shiftSummaryMap.get(shift);
+        return { shift, runHours: toHours(v.runSec), stopHours: toHours(v.stopSec) };
+      });
+
+      return response.status(200).send({
+        machine,
+        flowCol,
+        threshold,
+        shiftSettings: {
+          shift1: { start: request.query.shift1Start || MACHINE_SHIFT_DEFAULT.shift1_start, end: request.query.shift1End || MACHINE_SHIFT_DEFAULT.shift1_end },
+          shift2: { start: request.query.shift2Start || MACHINE_SHIFT_DEFAULT.shift2_start, end: request.query.shift2End || MACHINE_SHIFT_DEFAULT.shift2_end },
+          shift3: { start: request.query.shift3Start || MACHINE_SHIFT_DEFAULT.shift3_start, end: request.query.shift3End || MACHINE_SHIFT_DEFAULT.shift3_end },
+        },
+        daily,
+        shiftDaily,
+        shiftSummary,
+      });
+    } catch (err) {
+      return handleDbError(err, response, "getMachineRunningHours");
+    }
+  },
+
+  // Setingan jam shift (dipakai sebagai default saat halaman Machine dibuka) -
+  // disimpan 1 baris (id=1), pola UPSERT sama kayak getPageAccess /
+  // updatePageAccess di bawah. Butuh tabel `machine_shift_config` (lihat SQL
+  // migration yang dikirim terpisah).
+  getMachineShiftConfig: async (request, response) => {
+    try {
+      const rows = await query(`SELECT * FROM machine_shift_config WHERE id = 1`);
+      const cfg = rows[0] || { id: 1, ...MACHINE_SHIFT_DEFAULT };
+      return response.status(200).send(cfg);
+    } catch (err) {
+      return handleDbError(err, response, "getMachineShiftConfig");
+    }
+  },
+
+  updateMachineShiftConfig: async (request, response) => {
+    try {
+      const {
+        shift1_start, shift1_end,
+        shift2_start, shift2_end,
+        shift3_start, shift3_end,
+      } = request.body;
+
+      const fields = { shift1_start, shift1_end, shift2_start, shift2_end, shift3_start, shift3_end };
+      for (const key in fields) {
+        if (!/^\d{1,2}:\d{2}$/.test(String(fields[key] || ""))) {
+          return response.status(400).send({ message: `Format jam '${key}' tidak valid (HH:mm)` });
+        }
+      }
+
+      const upsertQuery = `
+        INSERT INTO machine_shift_config
+          (id, shift1_start, shift1_end, shift2_start, shift2_end, shift3_start, shift3_end)
+        VALUES (1, ${db.escape(shift1_start)}, ${db.escape(shift1_end)}, ${db.escape(shift2_start)}, ${db.escape(shift2_end)}, ${db.escape(shift3_start)}, ${db.escape(shift3_end)})
+        ON DUPLICATE KEY UPDATE
+          shift1_start = ${db.escape(shift1_start)}, shift1_end = ${db.escape(shift1_end)},
+          shift2_start = ${db.escape(shift2_start)}, shift2_end = ${db.escape(shift2_end)},
+          shift3_start = ${db.escape(shift3_start)}, shift3_end = ${db.escape(shift3_end)}
+      `;
+      await query(upsertQuery);
+      return response.status(200).send({ message: "Setingan shift berhasil disimpan" });
+    } catch (err) {
+      return handleDbError(err, response, "updateMachineShiftConfig");
     }
   },
   //===================================================================================
