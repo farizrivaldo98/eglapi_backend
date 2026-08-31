@@ -937,7 +937,6 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         .join(",\n        ");
 
       const queryData = `SELECT
-        data_index AS id,
         DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\`- 7 * 3600), '%Y-%m-%d %H:%i:%s') AS date,
         ${selectCols}
         FROM ${db.escapeId(cfg.table)}
