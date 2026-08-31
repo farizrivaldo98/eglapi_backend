@@ -210,7 +210,7 @@ const MACHINE_CONFIG = {
     table: "cMT-C21B_FBD_GEA_data",
     label: "FBD GEA",
     // urutan HARUS sama dengan data_format_0..7 di tabel (lihat Node-RED
-    // function "Build Insert FBD_GEA" / "Parse & Cache FBD_GEA")
+    // function "Build Insert FBD_GEA" / "Parse & Cache FBD_GEA")FIC2000_Flow
     params: [
       { col: 0, key: "SC3076_SpeedMotor", label: "Speed Motor", tag: "SC3076", unit: "Hz" },
       { col: 1, key: "TIS3012_OutletTemp", label: "Outlet Temp", tag: "TIS3012", unit: "°C" },
@@ -220,6 +220,8 @@ const MACHINE_CONFIG = {
       { col: 5, key: "PI0140_InletPress", label: "Inlet Pressure", tag: "PI0140", unit: "Pa" },
       { col: 6, key: "PI0141_ProdPress", label: "Product Pressure", tag: "PI0141", unit: "Pa" },
       { col: 7, key: "PI0142_OutPress", label: "Outlet Pressure", tag: "PI0142", unit: "Pa" },
+      { col: 8, key: "FIC2000_Flow", label: "Flow", tag: "FIC2000", unit: "m3/h" },
+
     ],
     defaultFlowCol: 0, // default parameter acuan running = Speed Motor
     defaultThreshold: 0,
