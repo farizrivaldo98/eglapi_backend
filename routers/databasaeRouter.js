@@ -49,4 +49,12 @@ routers.get("/getEnergyPowerHistorical", databaseControllers.getEnergyPowerHisto
 // Energy Power - Voltage/Current/Power/Frequency analysis (AVG/MAX/MIN per periode)
 routers.get("/getEnergyPowerParameters", databaseControllers.getEnergyPowerParameters);
 
+
+router.get("/getMachineConfig", Controller.getMachineConfig);
+router.get("/getMachineHistorical", Controller.getMachineHistorical);
+router.get("/getMachineRunningHours", Controller.getMachineRunningHours);
+router.get("/getMachineShiftConfig", Controller.getMachineShiftConfig);
+router.post("/updateMachineShiftConfig", Controller.updateMachineShiftConfig);
+
+
 module.exports = routers;
