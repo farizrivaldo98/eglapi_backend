@@ -1020,21 +1020,59 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         [3, { runSec: 0, stopSec: 0 }],
       ]);
 
+      // Timeline: segmen kontinu RUN/STOP dengan waktu mulai-selesai persis
+      // (sampai detik), dipecah per hari kalau segmennya nyebrang tengah
+      // malam - dipakai komponen "Timeline Run/Stop per Hari" di frontend
+      // biar keliatan potongan jam:menit berapa sampai berapa mesin run/stop.
+      const timelineMap = new Map(); // dayKey -> [{ state, start, end, durationMin }]
+      let openSeg = null;            // segmen yang lagi "kebuka": { state, startLocalMs, endLocalMs }
+      const fmtLocal = (ms) => {
+        const d = new Date(ms);
+        return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} `
+          + `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+      };
+      const dayKeyOfMs = (ms) => {
+        const d = new Date(ms);
+        return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+      };
+      // Tutup segmen yang lagi kebuka & simpan ke timelineMap, dipecah per
+      // hari kalau segmennya nyebrang tengah malam.
+      const flushOpenSeg = () => {
+        if (!openSeg) return;
+        let cur = openSeg.startLocalMs;
+        while (cur < openSeg.endLocalMs) {
+          const dayStartMs = Math.floor(cur / 86400000) * 86400000;
+          const segEndMs = Math.min(openSeg.endLocalMs, dayStartMs + 86400000);
+          const dayKey = dayKeyOfMs(cur);
+          if (!timelineMap.has(dayKey)) timelineMap.set(dayKey, []);
+          timelineMap.get(dayKey).push({
+            state: openSeg.state,
+            start: fmtLocal(cur),
+            end: fmtLocal(segEndMs),
+            durationMin: Number(((segEndMs - cur) / 60000).toFixed(1)),
+          });
+          cur = segEndMs;
+        }
+        openSeg = null;
+      };
+
       for (const row of rows) {
-        if (row.nextTs === null || row.nextTs === undefined) continue; // baris terakhir, gak ada next
+        if (row.nextTs === null || row.nextTs === undefined) { flushOpenSeg(); continue; } // baris terakhir, gak ada next
         const gapSec = Number(row.nextTs) - Number(row.ts);
-        if (!Number.isFinite(gapSec) || gapSec <= 0 || gapSec > MAX_GAP_SEC) continue;
+        if (!Number.isFinite(gapSec) || gapSec <= 0 || gapSec > MAX_GAP_SEC) { flushOpenSeg(); continue; } // logging putus -> tutup segmen lama, jangan disambung
 
         // ts di tabel sudah "+7 jam" waktu disimpan Node-RED (lihat komentar
         // di flow), jadi buat balikin ke wall-clock WIB tinggal dikurangi 7
         // jam lagi lalu dibaca sebagai UTC (BUKAN local time server) - persis
         // pola FROM_UNIXTIME(ts - 7*3600) yang dipakai query lain di file ini.
         const localMs = (Number(row.ts) - 7 * 3600) * 1000;
+        const nextLocalMs = (Number(row.nextTs) - 7 * 3600) * 1000;
         const d = new Date(localMs);
         const dayKey = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
         const minuteOfDay = d.getUTCHours() * 60 + d.getUTCMinutes();
 
         const isRun = Number(row.flowVal) > threshold;
+        const state = isRun ? "run" : "stop";
 
         if (!dailyMap.has(dayKey)) dailyMap.set(dayKey, { runSec: 0, stopSec: 0 });
         const dailyBucket = dailyMap.get(dayKey);
@@ -1053,7 +1091,18 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
           if (isRun) summaryBucket.runSec += gapSec;
           else summaryBucket.stopSec += gapSec;
         }
+
+        // Sambung ke segmen timeline yang lagi kebuka kalau state-nya sama &
+        // beneran nyambung (endLocalMs segmen sebelumnya == localMs baris
+        // ini) - selain itu tutup segmen lama & mulai segmen baru.
+        if (openSeg && openSeg.state === state && openSeg.endLocalMs === localMs) {
+          openSeg.endLocalMs = nextLocalMs;
+        } else {
+          flushOpenSeg();
+          openSeg = { state, startLocalMs: localMs, endLocalMs: nextLocalMs };
+        }
       }
+      flushOpenSeg(); // flush segmen terakhir yang masih kebuka pas loop selesai
 
       const toHours = (sec) => Number((sec / 3600).toFixed(2));
 
@@ -1073,6 +1122,12 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         return { shift, runHours: toHours(v.runSec), stopHours: toHours(v.stopSec) };
       });
 
+      // timelineMap -> object biasa, diurutin per tanggal, dipakai frontend
+      // buat render 1 bar per hari yang dipecah jadi segmen run(hijau)/stop(merah).
+      const timeline = Object.fromEntries(
+        Array.from(timelineMap.entries()).sort((a, b) => (a[0] > b[0] ? 1 : -1))
+      );
+
       return response.status(200).send({
         machine,
         flowCol,
@@ -1085,6 +1140,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         daily,
         shiftDaily,
         shiftSummary,
+        timeline,
       });
     } catch (err) {
       return handleDbError(err, response, "getMachineRunningHours");
