@@ -109,6 +109,8 @@ const ENERGY_POWER_TABLES = {
    PP_HVAC_Mezzanine3 :"cMT-C21B_PP_HVAC_Mezzanine3_data",
   PP_LP :"cMT-C21B_PP_LP_data",
 SDP2_Pro3 :"cMT-C21B_SDP2_Pro3_data",
+   LVMDP1 :"cMT-C21B_LVMDP1_data",
+
 
 };
 const ENERGY_POWER_PERIODS = ["hourly", "daily", "monthly"];
