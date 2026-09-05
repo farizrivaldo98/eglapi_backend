@@ -102,14 +102,14 @@ const ENERGY_POWER_TABLES = {
   SDP1_OFC1:"cMT-C21B_SDP1-OFC1_data",
   PP_Chiller:"cMT-C21B_PP_Chiller_data",
   SDP1_OFC23 : "cMT-C21B_SDP1-OFC23_data",
-   SDP2_PRO2 :"cMT-C21B_SDP2-PRO2_data",
-   SDP1_OFC45 :"cMT-C21B_SDP1-OFC45_data",
-   SDP2_OFC45 :"cMT-C21B_SDP2-OFC45_data",
-   SDP_MC :"cMT-C21B_SDP-MC_data",
-   PP_HVAC_Mezzanine3 :"cMT-C21B_PP_HVAC_Mezzanine3_data",
+  SDP2_PRO2 :"cMT-C21B_SDP2-PRO2_data",
+  SDP1_OFC45 :"cMT-C21B_SDP1-OFC45_data",
+  SDP2_OFC45 :"cMT-C21B_SDP2-OFC45_data",
+  SDP_MC :"cMT-C21B_SDP-MC_data",
+  PP_HVAC_Mezzanine3 :"cMT-C21B_PP_HVAC_Mezzanine3_data",
   PP_LP :"cMT-C21B_PP_LP_data",
-SDP2_Pro3 :"cMT-C21B_SDP2_Pro3_data",
-   LVMDP1 :"cMT-C21B_LVMDP1_data",
+  SDP2_Pro3 :"cMT-C21B_SDP2_Pro3_data",
+  LVMDP1 :"cMT-C21B_LVMDP1_data"
 
 
 };
