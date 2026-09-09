@@ -1219,7 +1219,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         });
       }
 
-      const fetchMeterRows = (tableName) => {
+      const fetchMeterRows = async (tableName) => {
         const q = `
           SELECT
             \`time@timestamp\` AS ts,
@@ -1229,7 +1229,26 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
           WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
           ORDER BY \`time@timestamp\` ASC
         `;
-        return query(q);
+
+        // Anchor: baris terakhir SEBELUM start, dipakai sebagai baseline delta
+        // buat baris pertama di dalam range. Tanpa ini, baris pertama di dalam
+        // range selalu jadi baseline dirinya sendiri (bukan "curr" di
+        // computeEnergyWaterDeltas) - deltanya ke-drop diam-diam, dan besar
+        // drop-nya ikut berubah tiap kali `start` digeser (bug: total harian
+        // beda-beda tergantung rentang tanggal yang dipilih).
+        const anchorQ = `
+          SELECT
+            \`time@timestamp\` AS ts,
+            DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600), '%Y-%m-%d %H:%i:%s') AS label,
+            data_format_1 AS totalizer
+          FROM ${db.escapeId(tableName)}
+          WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) < ${db.escape(start)}
+          ORDER BY \`time@timestamp\` DESC
+          LIMIT 1
+        `;
+
+        const [rangeRows, anchorRows] = await Promise.all([query(q), query(anchorQ)]);
+        return anchorRows.length ? [...anchorRows, ...rangeRows] : rangeRows;
       };
 
       // Cuma query 1 tabel sesuai meter yang diminta - bukan Trane1+Trane2
@@ -1264,7 +1283,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         });
       }
 
-      const fetchMeterRows = (tableName) => {
+      const fetchMeterRows = async (tableName) => {
         const q = `
           SELECT
             \`time@timestamp\` AS ts,
@@ -1274,7 +1293,23 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
           WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) BETWEEN ${db.escape(start)} AND ${db.escape(finish)}
           ORDER BY \`time@timestamp\` ASC
         `;
-        return query(q);
+
+        // Anchor: baris terakhir SEBELUM start, dipakai sebagai baseline delta
+        // buat baris pertama di dalam range. Pattern sama persis kayak fix di
+        // getEnergyWaterHistorical - lihat komentar di sana.
+        const anchorQ = `
+          SELECT
+            \`time@timestamp\` AS ts,
+            DATE_FORMAT(FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600), '%Y-%m-%d %H:%i:%s') AS label,
+            data_format_4 AS totalizer
+          FROM ${db.escapeId(tableName)}
+          WHERE FROM_UNIXTIME(\`time@timestamp\` - 7 * 3600) < ${db.escape(start)}
+          ORDER BY \`time@timestamp\` DESC
+          LIMIT 1
+        `;
+
+        const [rangeRows, anchorRows] = await Promise.all([query(q), query(anchorQ)]);
+        return anchorRows.length ? [...anchorRows, ...rangeRows] : rangeRows;
       };
 
       // Cuma query 1 tabel sesuai meter yang diminta - bukan UTY1+LAPI1
