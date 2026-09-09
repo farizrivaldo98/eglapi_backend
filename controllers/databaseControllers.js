@@ -1063,12 +1063,18 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
         const gapSec = Number(row.nextTs) - Number(row.ts);
         if (!Number.isFinite(gapSec) || gapSec <= 0 || gapSec > MAX_GAP_SEC) { flushOpenSeg(); continue; } // logging putus -> tutup segmen lama, jangan disambung
 
-        // ts di tabel sudah "+7 jam" waktu disimpan Node-RED (lihat komentar
-        // di flow), jadi buat balikin ke wall-clock WIB tinggal dikurangi 7
-        // jam lagi lalu dibaca sebagai UTC (BUKAN local time server) - persis
-        // pola FROM_UNIXTIME(ts - 7*3600) yang dipakai query lain di file ini.
-        const localMs = (Number(row.ts) - 7 * 3600) * 1000;
-        const nextLocalMs = (Number(row.nextTs) - 7 * 3600) * 1000;
+        // PERBAIKAN: ts di tabel dibaca APA ADANYA lewat new Date()+getUTCXxx()
+        // (BUKAN dikurangi 7*3600 lagi). Query SQL di atas (FROM_UNIXTIME(ts -
+        // 7*3600) BETWEEN start AND finish) sudah otomatis kena kompensasi
+        // timezone session MySQL (server DB di-set Asia/Jakarta, +7) buat balikin
+        // wall-clock WIB yang bener - tapi getUTCHours()/getUTCDate() di JS TIDAK
+        // ikut kompensasi session tz itu (JS Date murni UTC, gak kenal "session").
+        // Kalau ts dikurangi 7*3600 LAGI di sini, hasilnya wall-clock ke-mundur 7
+        // jam dari WIB asli, bikin baris jam 00:00-06:59 WIB ke-tarik ke tanggal
+        // SEBELUMNYA (jam 17:00-23:59) & baris lain jadi mentok di ~16:59 tiap
+        // hari - persis bug yang bikin Timeline/Tabel Start-Stop kepotong.
+        const localMs = Number(row.ts) * 1000;
+        const nextLocalMs = Number(row.nextTs) * 1000;
         const d = new Date(localMs);
         const dayKey = `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
         const minuteOfDay = d.getUTCHours() * 60 + d.getUTCMinutes();
