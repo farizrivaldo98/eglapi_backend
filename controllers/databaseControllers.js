@@ -238,6 +238,15 @@ const MACHINE_SHIFT_DEFAULT = {
   shift3_start: "22:00", shift3_end: "06:00",
 };
 
+// Kategori & sub-alasan downtime buat dropdown "Keterangan Stop" di
+// frontend (MachineStartStopTable / DowntimeReasonModal). Tambah/ubah
+// alasan cukup di sini - otomatis kepakai getDowntimeReasonOptions & jadi
+// acuan validasi di saveMachineDowntimeReasons juga.
+const DOWNTIME_REASONS = {
+  planned: ["Setting/Changeover", "Cleaning", "PM", "Meeting/Break"],
+  unplanned: ["Minor Stop", "Breakdown", "Material/Utility Problem", "Quality Problem"],
+};
+
 // "HH:mm" -> menit sejak 00:00. Balikin fallback kalau formatnya salah.
 function hhmmToMinutes(str, fallback) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(str || "").trim());
@@ -1197,6 +1206,97 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       return response.status(200).send({ message: "Setingan shift berhasil disimpan" });
     } catch (err) {
       return handleDbError(err, response, "updateMachineShiftConfig");
+    }
+  },
+
+  // Daftar kategori & alasan downtime buat isi dropdown "Keterangan Stop" -
+  // sinkron sama DOWNTIME_REASONS di atas (deket MACHINE_SHIFT_DEFAULT).
+  getDowntimeReasonOptions: async (request, response) => {
+    try {
+      return response.status(200).send({ reasons: DOWNTIME_REASONS });
+    } catch (err) {
+      return handleDbError(err, response, "getDowntimeReasonOptions");
+    }
+  },
+
+  // Ambil keterangan (alokasi kategori/alasan/menit/PIC) yang udah kesimpen
+  // buat 1 segmen STOP tertentu. Segmen dari getMachineRunningHours dihitung
+  // ULANG tiap query (bukan disimpan permanen di tabel), jadi gak punya id
+  // tetap - makanya di-key-in dari machine + jam mulai + jam selesai segmen
+  // (seg.start/seg.end persis kayak yang dikirim balik frontend). Butuh
+  // tabel `machine_downtime_reasons` (lihat SQL migration terpisah).
+  getMachineDowntimeReasons: async (request, response) => {
+    try {
+      const { machine, segStart, segEnd } = request.query;
+      if (!machine || !segStart || !segEnd) {
+        return response.status(400).send({ message: "Parameter machine, segStart, segEnd wajib diisi" });
+      }
+      const rows = await query(
+        `SELECT id, category, reason, note, duration_minutes AS minutes, pic
+         FROM machine_downtime_reasons
+         WHERE machine = ${db.escape(machine)}
+           AND seg_start = ${db.escape(segStart)}
+           AND seg_end = ${db.escape(segEnd)}
+         ORDER BY id ASC`
+      );
+      // duration_minutes balik sebagai DECIMAL - driver mysql suka
+      // ngebalikinnya jadi string, dipaksa Number() di sini biar konsisten
+      // buat perhitungan di frontend (allocatedSum dll).
+      const allocations = rows.map((r) => ({ ...r, minutes: Number(r.minutes) }));
+      return response.status(200).send({ allocations });
+    } catch (err) {
+      return handleDbError(err, response, "getMachineDowntimeReasons");
+    }
+  },
+
+  // Simpan keterangan stop buat 1 segmen - bisa dipecah jadi beberapa
+  // alokasi (mis. dari total stop 50 menit: 30 menit "Breakdown" + 20 menit
+  // "Minor Stop"), tiap alokasi punya kategori/alasan/menit/PIC/catatan
+  // sendiri-sendiri. Total menit alokasi TIDAK dipaksa pas sama durasi
+  // segmen (validasi ketat itu tugas frontend nampilin sisa/lebih) - di sini
+  // cuma divalidasi tiap alokasi valid & menitnya > 0.
+  // Pola REPLACE: hapus semua alokasi lama punya segmen ini, insert ulang
+  // dari yang dikirim frontend - lebih simpel daripada diff per baris.
+  saveMachineDowntimeReasons: async (request, response) => {
+    try {
+      const { machine, segStart, segEnd, allocations } = request.body;
+      if (!machine || !segStart || !segEnd) {
+        return response.status(400).send({ message: "Parameter machine, segStart, segEnd wajib diisi" });
+      }
+      if (!Array.isArray(allocations) || allocations.length === 0) {
+        return response.status(400).send({ message: "Minimal 1 alokasi keterangan diperlukan" });
+      }
+      for (const a of allocations) {
+        if (!DOWNTIME_REASONS[a.category]) {
+          return response.status(400).send({ message: `Kategori '${a.category}' tidak valid` });
+        }
+        if (!DOWNTIME_REASONS[a.category].includes(a.reason)) {
+          return response.status(400).send({ message: `Alasan '${a.reason}' tidak valid untuk kategori '${a.category}'` });
+        }
+        if (!Number.isFinite(Number(a.minutes)) || Number(a.minutes) <= 0) {
+          return response.status(400).send({ message: "Durasi tiap alokasi harus angka > 0 menit" });
+        }
+      }
+
+      await query(
+        `DELETE FROM machine_downtime_reasons
+         WHERE machine = ${db.escape(machine)} AND seg_start = ${db.escape(segStart)} AND seg_end = ${db.escape(segEnd)}`
+      );
+
+      const values = allocations
+        .map((a) => `(${db.escape(machine)}, ${db.escape(segStart)}, ${db.escape(segEnd)}, ${db.escape(a.category)}, `
+          + `${db.escape(a.reason)}, ${db.escape(a.note || null)}, ${db.escape(Number(a.minutes))}, ${db.escape(a.pic || null)})`)
+        .join(",\n        ");
+
+      await query(
+        `INSERT INTO machine_downtime_reasons
+          (machine, seg_start, seg_end, category, reason, note, duration_minutes, pic)
+         VALUES ${values}`
+      );
+
+      return response.status(200).send({ message: "Keterangan stop berhasil disimpan" });
+    } catch (err) {
+      return handleDbError(err, response, "saveMachineDowntimeReasons");
     }
   },
   //===================================================================================

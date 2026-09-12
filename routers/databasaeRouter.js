@@ -56,5 +56,10 @@ routers.get("/getMachineRunningHours", databaseControllers.getMachineRunningHour
 routers.get("/getMachineShiftConfig", databaseControllers.getMachineShiftConfig);
 routers.post("/updateMachineShiftConfig", databaseControllers.updateMachineShiftConfig);
 
+// Keterangan Stop (kategori/alasan downtime + pembagian menit + PIC) per segmen STOP
+routers.get("/getDowntimeReasonOptions", databaseControllers.getDowntimeReasonOptions);
+routers.get("/getMachineDowntimeReasons", databaseControllers.getMachineDowntimeReasons);
+routers.post("/saveMachineDowntimeReasons", databaseControllers.saveMachineDowntimeReasons);
+
 
 module.exports = routers;
