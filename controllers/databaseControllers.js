@@ -269,6 +269,62 @@ function pad2(n) {
   return String(n).padStart(2, "0");
 }
 
+
+//=============================N2===============================================
+
+const ENERGY_NITROGEN_SOURCES = {
+  n2_supply: {
+    table: "cMT-C21B_Flow_Meter_1_data",
+    tsCol: "time@timestamp",
+    flowCol: "data_format_0",
+  },
+  // sterile: { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // liquid:  { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // lt3:     { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // lapi1:   { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+};
+ 
+const ENERGY_NITROGEN_SAMPLE_SEC = 1; // 1 sample = 1 detik
+ 
+// fmt  : format label bucket (juga jadi key GROUP BY)
+// maxDays: batas rentang per request supaya server nggak berat narik jutaan
+//          baris per-detik. Boleh dinaikkan kalau memang perlu.
+const ENERGY_NITROGEN_PERIOD_CONFIG = {
+  minute: { fmt: "%Y-%m-%d %H:%i", maxDays: 3 },
+  hourly: { fmt: "%Y-%m-%d %H", maxDays: 31 },
+  daily: { fmt: "%Y-%m-%d", maxDays: 366 },
+};
+const ENERGY_NITROGEN_FLOW_PERIODS = ["minute", "hourly", "daily"];
+const ENERGY_NITROGEN_TOTALIZER_PERIODS = ["hourly", "daily"];
+ 
+// Balikin string error (atau null kalau valid) buat start/finish.
+function validateEnergyNitrogenRange(start, finish, maxDays) {
+  const re = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
+  if (!re.test(start) || !re.test(finish)) {
+    return "Format start/finish harus YYYY-MM-DD HH:mm[:ss]";
+  }
+  const s = new Date(start.replace(" ", "T")).getTime();
+  const f = new Date(finish.replace(" ", "T")).getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(f)) {
+    return "Tanggal start/finish tidak valid";
+  }
+  if (f < s) return "Finish harus setelah Start";
+  if ((f - s) / 86400000 > maxDays) {
+    return `Rentang maksimal ${maxDays} hari untuk periode ini`;
+  }
+  return null;
+}
+ 
+// Filter WHERE sargable: ts BETWEEN unix(start)+7jam AND unix(finish)+7jam
+// (ekuivalen dengan FROM_UNIXTIME(ts - 7*3600) BETWEEN start AND finish).
+function energyNitrogenWhere(tsCol, start, finish) {
+  return `${db.escapeId(tsCol)} BETWEEN UNIX_TIMESTAMP(${db.escape(start)}) + 7 * 3600
+                                    AND UNIX_TIMESTAMP(${db.escape(finish)}) + 7 * 3600`;
+}
+
+//============================================================================
+
+
 module.exports = {
   fetchOee: async (request, response) => {
     try {
@@ -1537,71 +1593,7 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       return handleDbError(err, res, "updatePageAccess");
     }
   },
-
-
-  //=========================================NITROGENN================================================================
-
-  const ENERGY_NITROGEN_SOURCES = {
-  n2_supply: {
-    table: "cMT-C21B_Flow_Meter_1_data",
-    tsCol: "time@timestamp",
-    flowCol: "data_format_0",
-  },
-  // sterile: { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
-  // liquid:  { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
-  // lt3:     { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
-  // lapi1:   { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
-};
- 
-const ENERGY_NITROGEN_SAMPLE_SEC = 1; // 1 sample = 1 detik
- 
-// fmt  : format label bucket (juga jadi key GROUP BY)
-// maxDays: batas rentang per request supaya server nggak berat narik jutaan
-//          baris per-detik. Boleh dinaikkan kalau memang perlu.
-const ENERGY_NITROGEN_PERIOD_CONFIG = {
-  minute: { fmt: "%Y-%m-%d %H:%i", maxDays: 3 },
-  hourly: { fmt: "%Y-%m-%d %H", maxDays: 31 },
-  daily: { fmt: "%Y-%m-%d", maxDays: 366 },
-};
-const ENERGY_NITROGEN_FLOW_PERIODS = ["minute", "hourly", "daily"];
-const ENERGY_NITROGEN_TOTALIZER_PERIODS = ["hourly", "daily"];
- 
-// Balikin string error (atau null kalau valid) buat start/finish.
-function validateEnergyNitrogenRange(start, finish, maxDays) {
-  const re = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
-  if (!re.test(start) || !re.test(finish)) {
-    return "Format start/finish harus YYYY-MM-DD HH:mm[:ss]";
-  }
-  const s = new Date(start.replace(" ", "T")).getTime();
-  const f = new Date(finish.replace(" ", "T")).getTime();
-  if (!Number.isFinite(s) || !Number.isFinite(f)) {
-    return "Tanggal start/finish tidak valid";
-  }
-  if (f < s) return "Finish harus setelah Start";
-  if ((f - s) / 86400000 > maxDays) {
-    return `Rentang maksimal ${maxDays} hari untuk periode ini`;
-  }
-  return null;
-}
- 
-// Filter WHERE sargable: ts BETWEEN unix(start)+7jam AND unix(finish)+7jam
-// (ekuivalen dengan FROM_UNIXTIME(ts - 7*3600) BETWEEN start AND finish).
-function energyNitrogenWhere(tsCol, start, finish) {
-  return `${db.escapeId(tsCol)} BETWEEN UNIX_TIMESTAMP(${db.escape(start)}) + 7 * 3600
-                                    AND UNIX_TIMESTAMP(${db.escape(finish)}) + 7 * 3600`;
-}
- 
- 
-// ════════════════════════════════════════════════════════════════════════
-// BAGIAN 2 - Dua endpoint (DI DALAM module.exports, pakai koma antar fungsi)
-// ════════════════════════════════════════════════════════════════════════
- 
-  //===============ENERGY NITROGEN (N2 flow L/min, data per detik)====================
-  // Helper & konstanta ada di atas (ENERGY_NITROGEN_*), bukan di sini karena
-  // object literal module.exports cuma boleh isi key: value.
- 
-  // Grafik/tabel flow rata-rata per MENIT / JAM / HARI (AVG, MAX, MIN per bucket).
-  getEnergyNitrogenFlow: async (request, response) => {
+getEnergyNitrogenFlow: async (request, response) => {
     try {
       const { start, finish } = request.query;
       let { period, source } = request.query;
@@ -1704,5 +1696,6 @@ function energyNitrogenWhere(tsCol, start, finish) {
       return handleDbError(err, response, "getEnergyNitrogenTotalizer");
     }
   },
+
   
 };
