@@ -1537,5 +1537,172 @@ AND NOT (BINARY TABLE_NAME LIKE 'cMT-C21B_CH%');`;
       return handleDbError(err, res, "updatePageAccess");
     }
   },
+
+
+  //=========================================NITROGENN================================================================
+
+  const ENERGY_NITROGEN_SOURCES = {
+  n2_supply: {
+    table: "cMT-C21B_Flow_Meter_1_data",
+    tsCol: "time@timestamp",
+    flowCol: "data_format_0",
+  },
+  // sterile: { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // liquid:  { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // lt3:     { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+  // lapi1:   { table: "cMT-C21B_XXX_data", tsCol: "time@timestamp", flowCol: "data_format_0" },
+};
+ 
+const ENERGY_NITROGEN_SAMPLE_SEC = 1; // 1 sample = 1 detik
+ 
+// fmt  : format label bucket (juga jadi key GROUP BY)
+// maxDays: batas rentang per request supaya server nggak berat narik jutaan
+//          baris per-detik. Boleh dinaikkan kalau memang perlu.
+const ENERGY_NITROGEN_PERIOD_CONFIG = {
+  minute: { fmt: "%Y-%m-%d %H:%i", maxDays: 3 },
+  hourly: { fmt: "%Y-%m-%d %H", maxDays: 31 },
+  daily: { fmt: "%Y-%m-%d", maxDays: 366 },
+};
+const ENERGY_NITROGEN_FLOW_PERIODS = ["minute", "hourly", "daily"];
+const ENERGY_NITROGEN_TOTALIZER_PERIODS = ["hourly", "daily"];
+ 
+// Balikin string error (atau null kalau valid) buat start/finish.
+function validateEnergyNitrogenRange(start, finish, maxDays) {
+  const re = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
+  if (!re.test(start) || !re.test(finish)) {
+    return "Format start/finish harus YYYY-MM-DD HH:mm[:ss]";
+  }
+  const s = new Date(start.replace(" ", "T")).getTime();
+  const f = new Date(finish.replace(" ", "T")).getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(f)) {
+    return "Tanggal start/finish tidak valid";
+  }
+  if (f < s) return "Finish harus setelah Start";
+  if ((f - s) / 86400000 > maxDays) {
+    return `Rentang maksimal ${maxDays} hari untuk periode ini`;
+  }
+  return null;
+}
+ 
+// Filter WHERE sargable: ts BETWEEN unix(start)+7jam AND unix(finish)+7jam
+// (ekuivalen dengan FROM_UNIXTIME(ts - 7*3600) BETWEEN start AND finish).
+function energyNitrogenWhere(tsCol, start, finish) {
+  return `${db.escapeId(tsCol)} BETWEEN UNIX_TIMESTAMP(${db.escape(start)}) + 7 * 3600
+                                    AND UNIX_TIMESTAMP(${db.escape(finish)}) + 7 * 3600`;
+}
+ 
+ 
+// ════════════════════════════════════════════════════════════════════════
+// BAGIAN 2 - Dua endpoint (DI DALAM module.exports, pakai koma antar fungsi)
+// ════════════════════════════════════════════════════════════════════════
+ 
+  //===============ENERGY NITROGEN (N2 flow L/min, data per detik)====================
+  // Helper & konstanta ada di atas (ENERGY_NITROGEN_*), bukan di sini karena
+  // object literal module.exports cuma boleh isi key: value.
+ 
+  // Grafik/tabel flow rata-rata per MENIT / JAM / HARI (AVG, MAX, MIN per bucket).
+  getEnergyNitrogenFlow: async (request, response) => {
+    try {
+      const { start, finish } = request.query;
+      let { period, source } = request.query;
+      if (!start || !finish) {
+        return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
+      }
+      if (!ENERGY_NITROGEN_FLOW_PERIODS.includes(period)) period = "hourly";
+      if (!Object.prototype.hasOwnProperty.call(ENERGY_NITROGEN_SOURCES, source)) {
+        return response.status(400).send({
+          message: `Sumber data belum tersedia. Pilihan aktif: ${Object.keys(ENERGY_NITROGEN_SOURCES).join(", ")}`,
+        });
+      }
+ 
+      const cfg = ENERGY_NITROGEN_PERIOD_CONFIG[period];
+      const rangeError = validateEnergyNitrogenRange(String(start), String(finish), cfg.maxDays);
+      if (rangeError) return response.status(400).send({ message: rangeError });
+ 
+      const { table, tsCol, flowCol } = ENERGY_NITROGEN_SOURCES[source];
+      const ts = db.escapeId(tsCol);
+      const flow = db.escapeId(flowCol);
+ 
+      const q = `
+        SELECT
+          DATE_FORMAT(FROM_UNIXTIME(${ts} - 7 * 3600), ${db.escape(cfg.fmt)}) AS label,
+          AVG(${flow})   AS flow_avg,
+          MAX(${flow})   AS flow_max,
+          MIN(${flow})   AS flow_min,
+          COUNT(${flow}) AS samples
+        FROM ${db.escapeId(table)}
+        WHERE ${energyNitrogenWhere(tsCol, String(start), String(finish))}
+        GROUP BY label
+        ORDER BY label ASC
+      `;
+ 
+      const rawRows = await query(q);
+ 
+      const round = (v, d) => (v === null || v === undefined ? null : Number(Number(v).toFixed(d)));
+ 
+      const rows = rawRows.map((r, idx) => ({
+        id: idx + 1,
+        label: r.label,
+        avg: round(r.flow_avg, 2),
+        max: round(r.flow_max, 2),
+        min: round(r.flow_min, 2),
+        samples: Number(r.samples) || 0,
+      }));
+ 
+      return response.status(200).send({ period, source, data: rows });
+    } catch (err) {
+      return handleDbError(err, response, "getEnergyNitrogenFlow");
+    }
+  },
+ 
+  // Totalizer (volume N2 dalam Liter) per JAM / HARI, dihitung dari data
+  // per-detik: SUM(flow L/min) x interval(detik) / 60.
+  getEnergyNitrogenTotalizer: async (request, response) => {
+    try {
+      const { start, finish } = request.query;
+      let { period, source } = request.query;
+      if (!start || !finish) {
+        return response.status(400).send({ message: "Parameter start, finish wajib diisi" });
+      }
+      if (!ENERGY_NITROGEN_TOTALIZER_PERIODS.includes(period)) period = "hourly";
+      if (!Object.prototype.hasOwnProperty.call(ENERGY_NITROGEN_SOURCES, source)) {
+        return response.status(400).send({
+          message: `Sumber data belum tersedia. Pilihan aktif: ${Object.keys(ENERGY_NITROGEN_SOURCES).join(", ")}`,
+        });
+      }
+ 
+      const cfg = ENERGY_NITROGEN_PERIOD_CONFIG[period];
+      const rangeError = validateEnergyNitrogenRange(String(start), String(finish), cfg.maxDays);
+      if (rangeError) return response.status(400).send({ message: rangeError });
+ 
+      const { table, tsCol, flowCol } = ENERGY_NITROGEN_SOURCES[source];
+      const ts = db.escapeId(tsCol);
+      const flow = db.escapeId(flowCol);
+ 
+      const q = `
+        SELECT
+          DATE_FORMAT(FROM_UNIXTIME(${ts} - 7 * 3600), ${db.escape(cfg.fmt)}) AS label,
+          SUM(${flow}) * ${Number(ENERGY_NITROGEN_SAMPLE_SEC)} / 60 AS volume_l,
+          COUNT(${flow}) AS samples
+        FROM ${db.escapeId(table)}
+        WHERE ${energyNitrogenWhere(tsCol, String(start), String(finish))}
+        GROUP BY label
+        ORDER BY label ASC
+      `;
+ 
+      const rawRows = await query(q);
+ 
+      const rows = rawRows.map((r, idx) => ({
+        id: idx + 1,
+        label: r.label,
+        value: Number(Number(r.volume_l || 0).toFixed(2)), // Liter
+        samples: Number(r.samples) || 0,
+      }));
+ 
+      return response.status(200).send({ period, source, data: rows });
+    } catch (err) {
+      return handleDbError(err, response, "getEnergyNitrogenTotalizer");
+    }
+  },
   
 };

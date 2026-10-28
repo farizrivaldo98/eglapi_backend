@@ -62,4 +62,12 @@ routers.get("/getMachineDowntimeReasons", databaseControllers.getMachineDowntime
 routers.post("/saveMachineDowntimeReasons", databaseControllers.saveMachineDowntimeReasons);
 
 
+
+//N2 
+routers.get("/getEnergyNitrogenFlow", databaseControllers.getEnergyNitrogenFlow);
+ 
+// Energy Nitrogen - totalizer (volume Liter) per jam/hari dari data per-detik
+routers.get("/getEnergyNitrogenTotalizer", databaseControllers.getEnergyNitrogenTotalizer);
+
+
 module.exports = routers;
